@@ -1,0 +1,30 @@
+{
+  "name": "professional-networking-platform",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "npm run seed && node server.js",
+    "dev": "nodemon server.js",
+    "seedUser": "node scripts/seedUser.js",
+    "seedAll": "node scripts/seedAll.js",
+    "seed": "npm run seedAll"
+
+
+    },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cloudinary": "^1.30.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.1",
+    "mongoose": "^7.4.0",
+    "multer": "^2.0.2",
+    "multer-storage-cloudinary": "^4.0.0",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

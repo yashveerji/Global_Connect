@@ -1,0 +1,41 @@
+/* 🔹 Global Container for Pages */
+.home-container {
+  @apply bg-gradient-to-b from-sky-50 to-white p-6 rounded-xl text-center shadow-md;
+}
+
+/* 🔹 Typography */
+h1, h2 {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Use utility classes in JSX preferably. But fallback: */
+h1 {
+  font-size: 2.25rem;
+  color: #1e3a8a; /* Blue-900 */
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 1.5rem;
+  color: #334155; /* Slate-700 */
+  font-weight: 600;
+}
+
+/* Optional: override text color in dark mode (if JSX lacks classes) */
+.dark h1 {
+  color: #bfdbfe; /* light blue */
+}
+
+.dark h2 {
+  color: #f1f5f9; /* slate-100 */
+}
+
+/* 🔹 Button base (only needed if not using btn-primary class) */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* 🔹 Footer Styling */
+.footer {
+  @apply text-center text-sm text-gray-500 dark:text-gray-400 py-4 border-t mt-10;
+}
