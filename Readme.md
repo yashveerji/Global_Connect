@@ -23,5 +23,5 @@ A full-stack social networking platform to connect professionals.
 ### 1. Clone repo
 
 ```bash
-git clone https://github.com/abhinavshrivastava12/professional-networking-platform.git
-cd professional-networking-platform
+git clone https://github.com/yashveerji/Global_Connect.git
+cd Global_Connect
