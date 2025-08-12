@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import io from "socket.io-client";
 
-const socket = io("https://professional-networking-platform.onrender.com", {
+const socket = io("http://localhost:5000/api", {
   transports: ["websocket"],
   withCredentials: true,
 });

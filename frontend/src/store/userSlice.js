@@ -3,7 +3,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 // 🔁 Replace with your actual backend base URL
-const API = "https://professional-networking-platform.onrender.com/api";
+const API = "http://localhost:5000/api";
 
 // 🔐 Register User
 export const registerUser = createAsyncThunk(

@@ -1,25 +1,12 @@
 const User = require("../models/User");
 
-// 👉 Send connection request
 const sendRequest = async (req, res) => {
+  const fromUserId = req.user.id;
+  const toUserId = req.params.id;
+
   try {
-    const fromUserId = req.user.id;
-    const toUserId = req.body.toUserId;
-
-    console.log("📤 sendRequest called");
-    console.log("fromUserId:", fromUserId);
-    console.log("toUserId:", toUserId);
-
-    if (fromUserId === toUserId) {
-      return res.status(400).json({ msg: "You cannot connect with yourself" });
-    }
-
     const toUser = await User.findById(toUserId);
-    const fromUser = await User.findById(fromUserId);
-
-    if (!toUser || !fromUser) {
-      return res.status(404).json({ msg: "User not found" });
-    }
+    if (!toUser) return res.status(404).json({ msg: "User not found" });
 
     if (
       toUser.connectionRequests.includes(fromUserId) ||
@@ -31,74 +18,67 @@ const sendRequest = async (req, res) => {
     toUser.connectionRequests.push(fromUserId);
     await toUser.save();
 
-    res.json({ msg: "Request sent" });
+    res.status(200).json({ msg: "Request sent" });
   } catch (err) {
-    console.error("❌ Error sending request:", err.message);
-    res.status(500).json({ msg: "Failed to send request" });
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
   }
 };
 
-// 👉 Accept connection request
 const acceptRequest = async (req, res) => {
+  const currentUserId = req.user.id;
+  const requesterId = req.params.id;
+
   try {
-    const currentUserId = req.user.id;
-    const senderId = req.body.senderId;
+    const me = await User.findById(currentUserId);
+    const requester = await User.findById(requesterId);
 
-    const currentUser = await User.findById(currentUserId);
-    const sender = await User.findById(senderId);
+    if (!me || !requester) return res.status(404).json({ msg: "User not found" });
 
-    if (!currentUser || !sender) {
-      return res.status(404).json({ msg: "User not found" });
-    }
-
-    if (!currentUser.connectionRequests.includes(senderId)) {
-      return res.status(400).json({ msg: "No such request" });
+    if (!me.connectionRequests.includes(requesterId)) {
+      return res.status(400).json({ msg: "No such request found" });
     }
 
     // Add to connections
-    currentUser.connections.push(senderId);
-    sender.connections.push(currentUserId);
+    me.connections.push(requesterId);
+    requester.connections.push(currentUserId);
 
-    // Remove from connectionRequests
-    currentUser.connectionRequests = currentUser.connectionRequests.filter(
-      (id) => id.toString() !== senderId
+    // Remove from requests
+    me.connectionRequests = me.connectionRequests.filter(
+      (id) => id.toString() !== requesterId
     );
 
-    await currentUser.save();
-    await sender.save();
+    await me.save();
+    await requester.save();
 
-    res.json({ msg: "Request accepted" });
+    res.status(200).json({ msg: "Request accepted" });
   } catch (err) {
-    console.error("❌ Accept Request Error:", err.message);
-    res.status(500).json({ msg: "Failed to accept request" });
+    console.error(err);
+    res.status(500).json({ msg: "Server error" });
   }
 };
 
-// 👉 Get all accepted connections
 const getConnections = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate(
       "connections",
-      "_id name email profilePic"
+      "_id name email"
     );
     res.json(user.connections);
   } catch (err) {
-    console.error("❌ Fetch Connections Error:", err.message);
-    res.status(500).json({ msg: "Failed to fetch connections" });
+    res.status(500).json({ msg: "Error getting connections" });
   }
 };
 
-// 👉 Get pending requests (received)
 const getPendingRequests = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate(
       "connectionRequests",
-      "_id name email profilePic"
+      "_id name email"
     );
     res.json(user.connectionRequests);
   } catch (err) {
-    console.error("❌ Fetch Pending Requests Error:", err.message);
-    res.status(500).json({ msg: "Failed to fetch pending requests" });
+    res.status(500).json({ msg: "Error getting pending requests" });
   }
 };
 

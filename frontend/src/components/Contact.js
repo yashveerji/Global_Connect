@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import api from "../api"; // ✅ Ye wahi axios instance hai jo aapne banaya tha
 
 const Contact = () => {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
@@ -8,11 +9,15 @@ const Contact = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form Submitted:", form);
-    setSent(true);
-    setForm({ name: "", email: "", message: "" });
+    try {
+      await api.post("/contact", form); // ✅ Backend par bhej diya
+      setSent(true);
+      setForm({ name: "", email: "", message: "" });
+    } catch (err) {
+      console.error("Error sending contact form:", err.response?.data || err.message);
+    }
   };
 
   return (
