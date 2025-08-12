@@ -9,7 +9,7 @@ const JobBoard = ({ user }) => {
   const [message, setMessage] = useState("");
 
   // Backend API ka base URL
-  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+  const API_URL = process.env.REACT_APP_API_URL || "https://global-connect-p93z.onrender.com/api";
 
   // Jobs fetch karna
   const fetchJobs = useCallback(async () => {

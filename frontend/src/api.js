@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // backend ka URL
+  baseURL: 'https://global-connect-p93z.onrender.com/api', // backend ka URL
 });
 
 export default api;

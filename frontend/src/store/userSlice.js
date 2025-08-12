@@ -3,7 +3,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
 // 🔁 Replace with your actual backend base URL
-const API = "http://localhost:5000/api";
+const API = "https://global-connect-p93z.onrender.com/api";
 
 // 🔐 Register User
 export const registerUser = createAsyncThunk(

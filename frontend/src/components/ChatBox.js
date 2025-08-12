@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import { useSelector } from "react-redux";
 
-const socket = io("http://localhost:5000/api", {
+const socket = io("https://global-connect-p93z.onrender.com/api", {
   transports: ["websocket"],
   withCredentials: true,
 }); // Or use ENV URL

@@ -1,7 +1,7 @@
 // backend/controllers/contactController.js
 const Contact = require("../models/contact");
 
-exports.submitContactForm = async (req, res) => {
+exports.submitContact = async (req, res) => {
   try {
     const { name, email, message } = req.body;
 

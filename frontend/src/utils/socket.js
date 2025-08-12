@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000/api", {
+const socket = io("https://global-connect-p93z.onrender.com/api", {
   transports: ["polling"], // ✅ Safe for Render
   withCredentials: true,
 });
