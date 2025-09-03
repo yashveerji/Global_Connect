@@ -1,0 +1,14 @@
+/*
+  # Site-wide CSP: strict by default
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'self'; object-src 'none'; form-action 'self';
+  Content-Security-Policy: script-src 'self' 'wasm-unsafe-eval';
+  # Allow API/WebSocket to backend on Render. Update the placeholder below with your actual backend origin if needed.
+  # Example: https://your-backend.onrender.com
+  Content-Security-Policy: connect-src 'self' https: wss:;  
+  Content-Security-Policy: img-src 'self' data: blob: https:; media-src 'self' blob: data:; font-src 'self' data:; style-src 'self' 'unsafe-inline';
+
+/rtc-ice-test.html
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; connect-src 'self' https: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'
+
+/rtc-test.html
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.socket.io 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'

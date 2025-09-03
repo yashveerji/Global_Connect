@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RTC Test (uses your app signaling)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    video { width: 100%; background: #000; border-radius: 8px; }
+    .controls { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    input, button { padding: 8px 12px; font-size: 14px; }
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; background:#f6f8fa; padding:8px; border-radius:8px; max-height: 220px; overflow:auto; }
+  </style>
+  <!-- Socket.io client -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <h1>WebRTC 1:1 Test (App Signaling)</h1>
+  <div class="controls">
+    <input id="server" placeholder="Backend URL (https://your-backend.onrender.com)" style="min-width:360px" />
+    <input id="me" placeholder="Your userId" />
+    <input id="peer" placeholder="Peer userId" />
+    <button id="btnConnect">Connect</button>
+    <button id="btnCallAudio" disabled>Call (Audio)</button>
+    <button id="btnCallVideo" disabled>Call (Video)</button>
+    <button id="btnAccept" disabled>Accept</button>
+    <button id="btnReject" disabled>Reject</button>
+    <button id="btnEnd" disabled>End</button>
+  </div>
+  <div class="grid">
+    <div>
+      <h3>Me</h3>
+      <video id="local" autoplay playsinline muted></video>
+    </div>
+    <div>
+      <h3>Peer</h3>
+      <video id="remote" autoplay playsinline></video>
+      <audio id="remoteAudio" autoplay></audio>
+    </div>
+  </div>
+  <h3>Logs</h3>
+  <div id="log" class="log"></div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const log = m => { const el = $("#log"); el.textContent += `\n${new Date().toLocaleTimeString()} — ${m}`; el.scrollTop = el.scrollHeight; };
+
+    let socket, pc, localStream, me, peer, serverUrl, incoming;
+
+    function makePC() {
+      const iceServers = [
+        { urls: [
+          'stun:stun.l.google.com:19302',
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302'
+        ]}
+      ];
+      pc = new RTCPeerConnection({ iceServers });
+      pc.onicecandidate = (e) => {
+        if (e.candidate && peer) {
+          socket.emit('ice_candidate', { to: peer, from: me, candidate: e.candidate });
+        }
+      };
+      pc.ontrack = (e) => {
+        const stream = e.streams?.[0];
+        if (!stream) return;
+        const rv = $('#remote');
+        const ra = $('#remoteAudio');
+        try { rv.srcObject = stream; rv.play?.().catch(()=>{}); } catch {}
+        try { if (stream.getAudioTracks().length) { ra.srcObject = stream; ra.play?.().catch(()=>{}); } } catch {}
+        log('Remote track');
+      };
+      return pc;
+    }
+
+    async function getMedia(type) {
+      const constraintsVideo = { video: { facingMode: { ideal: 'user' } }, audio: { echoCancellation: true } };
+      const constraintsAudio = { audio: { echoCancellation: true } };
+      const constraints = type === 'video' ? constraintsVideo : constraintsAudio;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (e) {
+        if (type === 'video') localStream = await navigator.mediaDevices.getUserMedia(constraintsAudio);
+        else throw e;
+      }
+      $('#local').srcObject = localStream; $('#local').play?.().catch(()=>{});
+      localStream.getTracks().forEach(t => { try { pc.addTrack(t, localStream) } catch {} });
+    }
+
+    $('#btnConnect').onclick = () => {
+      serverUrl = $('#server').value.trim();
+      me = $('#me').value.trim();
+      peer = $('#peer').value.trim();
+      if (!serverUrl || !me) { alert('Enter backend URL and your userId'); return; }
+      socket = io(serverUrl, { withCredentials: true });
+      socket.on('connect', () => { log('Socket connected'); socket.emit('register', me); });
+      socket.on('incoming_call', async ({ from, offer, callType }) => {
+        log(`Incoming ${callType} call from ${from}`); incoming = { from, offer, callType }; $('#btnAccept').disabled = false; $('#btnReject').disabled = false; peer = from; });
+      socket.on('call_answer', async ({ from, answer }) => { await pc.setRemoteDescription(new RTCSessionDescription(answer)); log('Got answer'); });
+      socket.on('ice_candidate', async ({ from, candidate }) => { try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); log('ICE added'); } catch (e) { log('ICE error '+e.message); }});
+      socket.on('call_ended', () => { end(false); log('Peer ended'); });
+      socket.on('call_rejected', () => { end(false); log('Rejected'); });
+      socket.on('call_unavailable', () => { end(false); log('Peer unavailable'); });
+      $('#btnCallAudio').disabled = false; $('#btnCallVideo').disabled = false; $('#btnEnd').disabled = false;
+    };
+
+    async function startCall(type) {
+      if (!peer) peer = $('#peer').value.trim();
+      if (!peer) { alert('Enter peer userId'); return; }
+      pc = makePC();
+      await getMedia(type);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('call_user', { to: peer, from: me, offer, callType: type });
+      log('Offer sent');
+    }
+
+    $('#btnCallAudio').onclick = () => startCall('audio');
+    $('#btnCallVideo').onclick = () => startCall('video');
+
+    $('#btnAccept').onclick = async () => {
+      if (!incoming) return;
+      pc = makePC();
+      await getMedia(incoming.callType);
+      await pc.setRemoteDescription(new RTCSessionDescription(incoming.offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('answer_call', { to: incoming.from, from: me, answer });
+      $('#btnAccept').disabled = true; $('#btnReject').disabled = true; incoming = null; log('Answered');
+    };
+    $('#btnReject').onclick = () => { if (!incoming) return; socket.emit('reject_call', { to: incoming.from, from: me }); incoming = null; $('#btnAccept').disabled = true; $('#btnReject').disabled = true; };
+
+    function end(notify=true) {
+      try { if (notify && peer) socket.emit('end_call', { to: peer, from: me }); } catch {}
+      try { pc?.getSenders()?.forEach(s => s.track && s.track.stop()); } catch {}
+      try { pc?.close?.(); } catch {}
+      pc = null; localStream = null; $('#local').srcObject = null; $('#remote').srcObject = null; $('#remoteAudio').srcObject = null;
+    }
+    $('#btnEnd').onclick = () => end(true);
+  </script>
+</body>
+</html>

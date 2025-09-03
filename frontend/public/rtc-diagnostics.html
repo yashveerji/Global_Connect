@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RTC Diagnostics</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; }
+      pre { background: #f5f5f5; padding: 8px; border-radius: 6px; overflow: auto; }
+      .ok { color: #0a7b2a; font-weight: 600; }
+      .warn { color: #b45309; font-weight: 600; }
+      .err { color: #b91c1c; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>RTC Diagnostics</h1>
+    <p>Validates dynamic ICE from backend and attempts a relay-only loopback with a datachannel.</p>
+    <div>
+      <label>Backend URL: <input id="backend" style="width: 420px" /></label>
+      <button id="load">Fetch ICE</button>
+      <span id="iceStatus"></span>
+    </div>
+    <pre id="ice"></pre>
+    <div>
+      <button id="test">Test Relay Loopback</button>
+      <span id="testStatus"></span>
+    </div>
+    <pre id="log"></pre>
+    <script>
+      const backend = document.getElementById('backend');
+      const iceEl = document.getElementById('ice');
+      const logEl = document.getElementById('log');
+      const iceStatus = document.getElementById('iceStatus');
+      const testStatus = document.getElementById('testStatus');
+      backend.value = (window.location.origin.replace(/\/$/, ''));
+
+      function log(...args) {
+        logEl.textContent += args.join(' ') + '\n';
+      }
+
+      async function fetchIce() {
+        iceStatus.textContent = ' loading...';
+        iceEl.textContent = '';
+        try {
+          const url = backend.value + '/api/rtc/ice';
+          const res = await fetch(url, { credentials: 'include' });
+          const data = await res.json();
+          iceEl.textContent = JSON.stringify(data, null, 2);
+          const list = (data && data.iceServers) || [];
+          const hasTcp = list.some(s => (Array.isArray(s.urls)? s.urls:[s.urls]).some(u => (u||'').toLowerCase().includes('transport=tcp') || (u||'').toLowerCase().startsWith('turns:')));
+          iceStatus.innerHTML = hasTcp ? ' <span class="ok">OK: TCP/TLS TURN present</span>' : ' <span class="warn">WARN: No TCP/TLS TURN found</span>';
+          window.__ICE_SERVERS__ = list;
+        } catch (e) {
+          iceStatus.innerHTML = ' <span class="err">ERR</span>';
+          iceEl.textContent = e?.message || String(e);
+        }
+      }
+
+      async function testRelay() {
+        testStatus.textContent = ' running...';
+        logEl.textContent = '';
+        const servers = Array.isArray(window.__ICE_SERVERS__) && window.__ICE_SERVERS__.length ? window.__ICE_SERVERS__ : [];
+        if (!servers.length) {
+          log('No ICE servers loaded yet. Click Fetch ICE first.');
+          testStatus.innerHTML = ' <span class="warn">No ICE</span>';
+          return;
+        }
+        const cfg = { iceServers: servers, iceTransportPolicy: 'relay' };
+        const a = new RTCPeerConnection(cfg);
+        const b = new RTCPeerConnection(cfg);
+        a.onicecandidate = e => e.candidate && b.addIceCandidate(e.candidate).catch(()=>{});
+        b.onicecandidate = e => e.candidate && a.addIceCandidate(e.candidate).catch(()=>{});
+        const ch = a.createDataChannel('t');
+        ch.onopen = () => log('Datachannel open');
+        b.ondatachannel = ev => { ev.channel.onmessage = m => log('rx', m.data); };
+        const offer = await a.createOffer();
+        await a.setLocalDescription(offer);
+        await b.setRemoteDescription(offer);
+        const answer = await b.createAnswer();
+        await b.setLocalDescription(answer);
+        await a.setRemoteDescription(answer);
+        await new Promise(r => setTimeout(r, 2000));
+        const stats = await a.getStats();
+        let pair, local, remote;
+        stats.forEach(s => { if (s.type === 'transport' && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId); });
+        if (!pair) stats.forEach(s => { if (s.type === 'candidate-pair' && s.selected) pair = s; });
+        if (pair) {
+          local = stats.get(pair.localCandidateId);
+          remote = stats.get(pair.remoteCandidateId);
+          log('Selected pair:', JSON.stringify(pair, null, 2));
+          log('Local cand:', JSON.stringify(local, null, 2));
+          log('Remote cand:', JSON.stringify(remote, null, 2));
+          const ok = (local && local.candidateType === 'relay') && (remote && remote.candidateType === 'relay');
+          testStatus.innerHTML = ok ? ' <span class="ok">Connected via RELAY</span>' : ' <span class="warn">Not relayed</span>';
+        } else {
+          testStatus.innerHTML = ' <span class="err">No selected pair</span>';
+        }
+        setTimeout(() => { a.close(); b.close(); }, 1000);
+      }
+
+      document.getElementById('load').onclick = fetchIce;
+      document.getElementById('test').onclick = testRelay;
+    </script>
+  </body>
+  </html>
