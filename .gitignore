@@ -60,6 +60,5 @@ pids
 .netlify/
 
 # Project-specific
-backend/public/
 frontend/dist/
 webrtc-starter/client/dist/
