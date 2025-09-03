@@ -1,0 +1,54 @@
+services:
+  - type: web
+    name: gcp-backend
+    rootDir: backend
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGINS
+        fromService:
+          type: static
+          name: gcp-frontend
+          property: url
+      # Provide these securely in the dashboard if not set here
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: MONGODB_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
+  - type: static
+    name: gcp-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_SERVER_URL
+        fromService:
+          type: web
+          name: gcp-backend
+          property: url
+      # Optional TURN stress mode for locked-down networks
+      - key: VITE_FORCE_TURN
+        value: "true"
+      - key: VITE_TURN_TCP_ONLY
+        value: "true"
