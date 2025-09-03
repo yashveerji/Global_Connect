@@ -63,8 +63,8 @@ Open http://localhost:5173 and sign up (OTP flow) or log in. Posting with an ima
 - Cookies require HTTPS in production (SameSite=None; Secure)
 
 ## Author
-- Name: yashveerji
+- Name: Yashveer Singh
 - GitHub: https://github.com/yashveerji
-
+- Host Link: https://globalconnect-ys.onrender.com
 ## License
 This project is provided as‑is for learning/demo purposes. Add your preferred license file if you plan to distribute.

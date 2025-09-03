@@ -29,28 +29,63 @@ const server = http.createServer(app);
 // Trust reverse proxies (Render/Netlify/etc.) so cookies & protocol are determined correctly
 app.set('trust proxy', 1);
 
-// CORS origins come from .env (CORS_ORIGINS). No hardcoded production URLs.
+// CORS origins come from .env (CORS_ORIGINS), optionally CORS_ORIGIN_REGEX for regex patterns.
+const isDev = (process.env.NODE_ENV === "development" || process.env.NODE_ENVIRONMENT === "development");
 const envOrigins = (process.env.CORS_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+const envOriginRegex = (process.env.CORS_ORIGIN_REGEX || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((pat) => {
+    try { return new RegExp(pat); } catch { console.warn(`[CORS] Invalid regex pattern ignored: ${pat}`); return null; }
+  })
+  .filter(Boolean);
 
-const isDev = (process.env.NODE_ENV === "development" || process.env.NODE_ENVIRONMENT === "development");
-// In dev, fall back to localhost only; in prod, require CORS_ORIGINS to be set.
-const corsOrigins = envOrigins.length ? envOrigins : (isDev ? ["http://localhost:5173"] : []);
+// Normalize origin for comparison (lowercase, trim, drop trailing slash)
+function normalizeOrigin(o) {
+  if (!o) return "";
+  let n = o.toString().trim().toLowerCase();
+  if (n.endsWith("/")) n = n.slice(0, -1);
+  return n;
+}
 
-if (!envOrigins.length && !isDev) {
-  console.warn("[CORS] No CORS_ORIGINS set in env; cross-origin requests will be blocked. Set CORS_ORIGINS in .env.");
+const allowedSet = new Set(envOrigins.map(normalizeOrigin));
+const allowLocalhost = isDev; // Allow any localhost:* in dev
+
+function isOriginAllowed(origin) {
+  if (!origin) return true; // same-origin or curl/healthchecks
+  const n = normalizeOrigin(origin);
+  if (allowedSet.has(n)) return true;
+  // Dev convenience: allow any localhost with any port
+  if (allowLocalhost && /^http:\/\/localhost(\:\d+)?$/.test(n)) return true;
+  // Regex patterns, if provided
+  for (const rx of envOriginRegex) {
+    if (rx.test(n)) return true;
+  }
+  return false;
 }
 
 const corsOptions = {
-  origin: corsOrigins,
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) return callback(null, true);
+    console.warn(`[CORS] Blocked origin: ${origin}`);
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
 };
 
 // Socket.IO server with same CORS config and resilient transport/timeouts for hosts behind proxies/LB
 export const io = new Server(server, {
-  cors: { origin: corsOrigins, credentials: true },
+  cors: {
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  },
   transports: ["websocket", "polling"],
   pingInterval: 25000,
   pingTimeout: 60000,
