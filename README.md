@@ -36,26 +36,6 @@ A modern, full‑stack social network platform (LinkedIn‑style) with realtime 
 - `frontend/` React app (Vite), UI, pages, components, sockets
 - `webrtc-starter/` Minimal demo scaffolding for RTC testing
 
-## Getting Started (Local)
-1) Prereqs: Node 18+, MongoDB URI, Cloudinary account
-2) Backend setup
-   - Copy `backend/sample.env` to `backend/.env` and fill:
-     - `MONGODB_URL`, `JWT_SECRET`
-     - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-     - `CORS_ORIGINS=http://localhost:5173`
-   - Install & run:
-     - `cd backend`
-     - `npm install`
-     - `npm run dev`
-3) Frontend setup
-   - Create `frontend/.env`:
-     - `VITE_SERVER_URL=http://localhost:8000`
-   - Install & run:
-     - `cd frontend`
-     - `npm install`
-     - `npm run dev`
-
-Open http://localhost:5173 and sign up (OTP flow) or log in. Posting with an image will stream to Cloudinary (no local disk required).
 
 ## Deployment Notes
 - Render templates provided in `render.yaml` for backend (web) and frontend (static)
