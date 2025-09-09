@@ -195,6 +195,18 @@ h3 { font-size: var(--gc-h3); }
 .hover-lift { transition: transform .15s ease, box-shadow .2s ease; }
 .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 12px 22px -12px rgba(0,0,0,.35); }
 
+/* Gentle floating background shapes */
+@keyframes gc-float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+.animate-float-slow { animation: gc-float 6s ease-in-out infinite; }
+
+/* Small spinner for loading buttons */
+@keyframes gc-spin { to { transform: rotate(360deg); } }
+.spinner { width: 16px; height: 16px; border-radius: 9999px; border: 2px solid rgba(255,255,255,.35); border-top-color: #ffffff; animation: gc-spin .8s linear infinite; display: inline-block; }
+
 /* Accessibility: reduce motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,

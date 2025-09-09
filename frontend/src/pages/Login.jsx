@@ -58,12 +58,13 @@
 
 // export default Login
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState, useMemo } from 'react';
 import logo from "../assets/GCF.jpg";
 import { useNavigate } from "react-router-dom";
 import { authDataContext } from '../context/AuthContext';
 import axios from "axios";
 import { userDataContext } from '../context/UserContext';
+import { motion } from "framer-motion";
 
 function Login() {
   let [show, setShow] = useState(false);
@@ -102,9 +103,28 @@ function Login() {
     }
   };
 
+  // Animation variants
+  const containerV = useMemo(() => ({
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.06, delayChildren: 0.05 }
+    }
+  }), []);
+  const itemV = useMemo(() => ({
+    hidden: { opacity: 0, y: 12 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } }
+  }), []);
+
   return (
-  <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#23243a] dark:from-[#121212] dark:to-[#121212] flex items-center justify-center px-4 py-10 text-white animate-fade-in">
-      <div className="w-full max-w-5xl card p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 relative animate-scale-in">
+  <motion.main initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#23243a] dark:from-[#121212] dark:to-[#121212] flex items-center justify-center px-4 py-10 text-white">
+      {/* Decorative background blobs */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-16 -left-16 h-72 w-72 rounded-full bg-[#1A1F71]/30 blur-3xl animate-float-slow" />
+        <div className="absolute -bottom-16 -right-10 h-80 w-80 rounded-full bg-yellow-300/10 blur-3xl animate-float-slow" style={{ animationDelay: '1.2s' }} />
+      </div>
+
+      <motion.section initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.2 }} className="w-full max-w-5xl card p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 relative">
         <button
           type="button"
           className="absolute right-4 top-4 z-10 text-xs px-3 py-1 rounded-full border border-yellow-400 text-yellow-300 bg-[#23243a]/60 backdrop-blur hover:bg-[#23243a]/80"
@@ -113,23 +133,23 @@ function Login() {
           {darkMode ? 'Light mode' : 'Dark mode'}
         </button>
         {/* Brand panel (left) */}
-        <div className="relative hidden md:flex flex-col items-center justify-center bg-gradient-to-br from-[#1A1F71] to-[#2f3052] text-yellow-200 p-10">
-          <img src={logo} alt="Global Connect" className="h-24 w-24 rounded-xl object-cover shadow-lg mb-5" />
-          <h2 className="text-2xl font-bold text-yellow-300 mb-2 text-center">Welcome to Global Connect</h2>
-          <p className="text-sm text-yellow-200/90 text-center max-w-sm">
+        <motion.div initial={{ x: -16, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 220, damping: 26 }} className="relative hidden md:flex flex-col items-center justify-center bg-gradient-to-br from-[#1A1F71] to-[#2f3052] text-yellow-200 p-10">
+          <motion.img src={logo} alt="Global Connect" className="h-24 w-24 rounded-xl object-cover shadow-lg mb-5" whileHover={{ scale: 1.04 }} transition={{ type: 'spring', stiffness: 300, damping: 15 }} />
+          <motion.h2 className="text-2xl font-bold text-yellow-300 mb-2 text-center" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>Welcome to Global Connect</motion.h2>
+          <motion.p className="text-sm text-yellow-200/90 text-center max-w-sm" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.05 }}>
             Connect with professionals, chat in real time, discover jobs, and grow your network.
-          </p>
-          <div className="mt-6 grid grid-cols-1 gap-2 text-sm text-yellow-100/90">
-            <div className="inline-flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-yellow-300"/> Instant chat and calls</div>
-            <div className="inline-flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-yellow-300"/> Smart AI assistant</div>
-            <div className="inline-flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-yellow-300"/> Job search & applications</div>
-          </div>
-        </div>
+          </motion.p>
+          <motion.div className="mt-6 grid grid-cols-1 gap-2 text-sm text-yellow-100/90" variants={containerV} initial="hidden" animate="show">
+            <motion.div className="inline-flex items-center gap-2" variants={itemV}><span className="h-1.5 w-1.5 rounded-full bg-yellow-300"/> Instant chat and calls</motion.div>
+            <motion.div className="inline-flex items-center gap-2" variants={itemV}><span className="h-1.5 w-1.5 rounded-full bg-yellow-300"/> Smart AI assistant</motion.div>
+            <motion.div className="inline-flex items-center gap-2" variants={itemV}><span className="h-1.5 w-1.5 rounded-full bg-yellow-300"/> Job search & applications</motion.div>
+          </motion.div>
+        </motion.div>
 
         {/* Form panel (right) */}
-  <div className="bg-white text-gray-800 dark:bg-[#1E1E1E] dark:text-white p-8 md:p-10">
+  <motion.div className="bg-white text-gray-800 dark:bg-[#1E1E1E] dark:text-white p-8 md:p-10" variants={containerV} initial="hidden" animate="show">
           <div className="md:hidden flex items-center justify-center mb-6">
-            <img src={logo} alt="Global Connect" className="h-16 w-16 rounded-lg object-cover shadow" />
+            <motion.img src={logo} alt="Global Connect" className="h-16 w-16 rounded-lg object-cover shadow" whileHover={{ scale: 1.05 }} />
           </div>
           <h1 className="text-3xl font-extrabold text-[#1A1F71] dark:text-yellow-300 text-center">Sign in</h1>
           <p className="text-center text-gray-600 dark:text-yellow-200/80 mt-1 mb-6 text-sm">Welcome back! Please enter your details.</p>
@@ -137,7 +157,8 @@ function Login() {
           <form onSubmit={handleSignIn} className="flex flex-col gap-4">
             {/* Email */}
             <label htmlFor="login-email" className="sr-only">Email</label>
-            <input
+            <motion.input
+              variants={itemV}
               id="login-email"
               name="email"
               autoComplete="email"
@@ -150,7 +171,7 @@ function Login() {
             />
 
             {/* Password */}
-            <div className="relative">
+            <motion.div className="relative" variants={itemV}>
               <label htmlFor="login-password" className="sr-only">Password</label>
               <input
                 id="login-password"
@@ -170,15 +191,15 @@ function Login() {
               >
                 {show ? "Hide" : "Show"}
               </button>
-            </div>
+            </motion.div>
 
             {/* Error */}
             {err && (
-              <p className="text-center text-red-500 text-sm font-medium -mt-1">*{err}</p>
+              <motion.p initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} className="text-center text-red-500 text-sm font-medium -mt-1">*{err}</motion.p>
             )}
 
             {/* Actions */}
-            <div className="flex items-center justify-between text-sm">
+            <motion.div className="flex items-center justify-between text-sm" variants={itemV}>
               <label className="inline-flex items-center gap-2 cursor-pointer select-none text-gray-700 dark:text-yellow-200/90">
                 <input type="checkbox" className="accent-[#1A1F71] dark:accent-yellow-400" />
                 Remember me
@@ -190,18 +211,15 @@ function Login() {
               >
                 Forgot password?
               </button>
-            </div>
+            </motion.div>
 
             {/* Submit */}
-            <button
-              className="btn-primary h-[48px] mt-2"
-              disabled={loading}
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
+            <motion.button whileHover={{ scale: loading ? 1 : 1.015 }} whileTap={{ scale: loading ? 1 : 0.99 }} className="btn-primary h-[48px] mt-2" disabled={loading} aria-busy={loading} aria-live="polite">
+              {loading ? <span className="inline-flex items-center gap-2"><span className="spinner" /> Signing in...</span> : "Sign In"}
+            </motion.button>
 
             {/* Sign Up */}
-            <p className="text-center text-gray-600 dark:text-yellow-200/80 mt-2 text-sm">
+            <motion.p className="text-center text-gray-600 dark:text-yellow-200/80 mt-2 text-sm" variants={itemV}>
               Don’t have an account?{' '}
               <button
                 type="button"
@@ -210,11 +228,11 @@ function Login() {
               >
                 Sign Up
               </button>
-            </p>
+            </motion.p>
           </form>
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.section>
+    </motion.main>
   );
 }
 
