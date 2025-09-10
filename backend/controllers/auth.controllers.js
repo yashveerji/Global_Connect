@@ -57,7 +57,7 @@ export const verifyOtp = async (req, res) => {
     const { userId, otp } = req.body;
     if (!userId || !otp) return res.status(400).json({ message: "Missing userId or otp" });
 
-  const user = await User.findById(userId).select("+otp +otpExpiry");
+    const user = await User.findById(userId).select("+otp +otpExpiry");
     if (!user) return res.status(400).json({ message: "User not found" });
     if (!user.otp || !user.otpExpiry) return res.status(400).json({ message: "No OTP set for this user" });
     if (user.otp !== otp) return res.status(400).json({ message: "Invalid OTP" });
@@ -66,7 +66,6 @@ export const verifyOtp = async (req, res) => {
     // Clear OTP fields and log in user
     user.otp = undefined;
     user.otpExpiry = undefined;
-  user.isVerified = true;
     await user.save();
 
     const token = await genToken(user._id);
@@ -82,8 +81,7 @@ export const verifyOtp = async (req, res) => {
   // Allow cookie in third-party context but partitioned per top-level site (Chrome 3PC deprecation)
   partitioned: isProd,
     });
-  const { password, otp: _o, otpExpiry: _oe, ...safe } = user.toObject();
-  return res.status(200).json(safe);
+    return res.status(200).json(user);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "OTP verification error" });
@@ -95,10 +93,12 @@ export const resendOtp = async (req, res) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ message: "Missing userId" });
     // Access otp fields
-  const user = await User.findById(userId).select("email otp otpExpiry isVerified");
+    const user = await User.findById(userId).select("email otp otpExpiry");
     if (!user) return res.status(400).json({ message: "User not found" });
     // If already verified, otp fields would be undefined
-  if (user.isVerified) return res.status(400).json({ message: "User already verified" });
+    if (user.otp === undefined || user.otpExpiry === undefined) {
+      return res.status(400).json({ message: "User already verified" });
+    }
 
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const newExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
@@ -122,7 +122,7 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    let user = await User.findOne({ email }).select("+password isVerified firstName lastName userName email profileImage coverImage headline skills education location gender experience savedPosts connection lastSeen createdAt updatedAt");
+    let user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "User does not exist!" });
     }
@@ -130,12 +130,6 @@ export const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Incorrect password" });
-    }
-
-  // Enforce OTP verification before allowing login.
-  // Back-compat: if isVerified is undefined (older accounts), allow login.
-  if (user.isVerified === false) {
-      return res.status(403).json({ message: "Please verify your email via OTP before logging in." });
     }
 
     let token = await genToken(user._id);
@@ -152,8 +146,7 @@ export const login = async (req, res) => {
   partitioned: isProd
     });
 
-  const { password: _p, otp, otpExpiry, ...safe } = user.toObject();
-  return res.status(200).json(safe);
+    return res.status(200).json(user);
 
   } catch (error) {
     console.log(error);

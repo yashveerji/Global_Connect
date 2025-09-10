@@ -23,11 +23,6 @@ const userSchema=new mongoose.Schema({
         type:String,
         required:true,
     },
-    // Indicates if the user's email has been verified via OTP
-    isVerified: {
-        type: Boolean,
-        default: false
-    },
     otp: {
         type: String,
         select: false,
