@@ -1,6 +1,5 @@
 
 import React, { useContext, useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
 import { FaMoon, FaSun } from 'react-icons/fa';
 import logo2 from "../assets/GC.jpg"
 import { IoSearchSharp } from "react-icons/io5";
@@ -225,91 +224,55 @@ function Nav() {
                 )}
 
                 {/* Right: Nav Items */}
-                                <nav className='flex items-center gap-4' aria-label="Main navigation links">
-                                        <motion.button
-                                            className={`relative hidden lg:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                <nav className='flex items-center gap-4' aria-label="Main navigation links">
+                    <button
+                        className={`hidden lg:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/")}
                         aria-label="Home"
-                                                aria-current={isActive("/") ? 'page' : undefined}
-                                                whileHover={{ y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
                     >
                         <TiHome className='w-[23px] h-[23px] mb-1' />
                         <span>Home</span>
-                                                {isActive("/") && (
-                                                    <motion.span layoutId="nav-active-underline" className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-[3px] w-6 rounded-full bg-indigo-200/80" transition={{ type: 'spring', stiffness: 450, damping: 30 }} />
-                                                )}
-                                        </motion.button>
-                                        <motion.button
-                                            className={`relative hidden md:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/network") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                    </button>
+                    <button
+                        className={`hidden md:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/network") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/network")}
                         aria-label="My Networks"
-                                                aria-current={isActive("/network") ? 'page' : undefined}
-                                                whileHover={{ y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
                     >
                         <FaUserGroup className='w-[23px] h-[23px] mb-1' />
                         <span>My Networks</span>
-                                                {isActive("/network") && (
-                                                    <motion.span layoutId="nav-active-underline" className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-[3px] w-6 rounded-full bg-indigo-200/80" transition={{ type: 'spring', stiffness: 450, damping: 30 }} />
-                                                )}
-                                        </motion.button>
-                                        <motion.button
-                                            className={`relative flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/chat") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                    </button>
+                    <button
+                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/chat") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/chat")}
                         aria-label="Chat"
-                                                aria-current={isActive("/chat") ? 'page' : undefined}
-                                                whileHover={{ y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
                     >
                         <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px] mb-1' />
                         <span className='hidden md:block'>Chat</span>
-                                                {isActive("/chat") && (
-                                                    <motion.span layoutId="nav-active-underline" className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-[3px] w-6 rounded-full bg-indigo-200/80" transition={{ type: 'spring', stiffness: 450, damping: 30 }} />
-                                                )}
-                                        </motion.button>
-                                        <motion.button
-                                            className={`relative flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/jobs") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                    </button>
+                    <button
+                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/jobs") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/jobs")}
                         aria-label="Jobs"
-                                                aria-current={isActive("/jobs") ? 'page' : undefined}
-                                                whileHover={{ y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
                     >
                         <MdWork className="w-[23px] h-[23px] mb-1" />
                         <span className="hidden md:block">Jobs</span>
-                                                {isActive("/jobs") && (
-                                                    <motion.span layoutId="nav-active-underline" className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-[3px] w-6 rounded-full bg-indigo-200/80" transition={{ type: 'spring', stiffness: 450, damping: 30 }} />
-                                                )}
-                                        </motion.button>
-                                        <motion.button
-                                            className={`relative flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/notification") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                    </button>
+                    <button
+                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/notification") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/notification")}
                         aria-label="Notifications"
-                                                aria-current={isActive("/notification") ? 'page' : undefined}
-                                                whileHover={{ y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
                     >
                         <IoNotificationsSharp className='w-[23px] h-[23px] mb-1' />
                         <span className='hidden md:block'>Notifications</span>
-                                                {isActive("/notification") && (
-                                                    <motion.span layoutId="nav-active-underline" className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-[3px] w-6 rounded-full bg-indigo-200/80" transition={{ type: 'spring', stiffness: 450, damping: 30 }} />
-                                                )}
-                                        </motion.button>
-                                        <motion.button
-                                            className={`relative flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/saved") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                    </button>
+                    <button
+                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/saved") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate('/saved')}
                         aria-label="Saved"
-                                                aria-current={isActive("/saved") ? 'page' : undefined}
-                                                whileHover={{ y: -2 }}
-                                                whileTap={{ scale: 0.98 }}
                     >
                         <BsBookmarkHeartFill className='w-[23px] h-[23px] mb-1' />
                         <span className='hidden md:block'>Saved</span>
-                                                {isActive("/saved") && (
-                                                    <motion.span layoutId="nav-active-underline" className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-[3px] w-6 rounded-full bg-indigo-200/80" transition={{ type: 'spring', stiffness: 450, damping: 30 }} />
-                                                )}
-                                        </motion.button>
+                    </button>
                     {/* Dark/Light Mode Toggle */}
                     <button
                         className={`ml-2 p-2 rounded-full shadow focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all duration-300

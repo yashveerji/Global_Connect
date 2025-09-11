@@ -71,13 +71,12 @@
 // export default Signup
 
 
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useContext, useState } from 'react';
 import logo from "../assets/GCF.jpg";
 import { useNavigate } from "react-router-dom";
 import { authDataContext } from '../context/AuthContext';
 import axios from "axios";
 import { userDataContext } from '../context/UserContext';
-import { motion, AnimatePresence } from "framer-motion";
 
 function Signup() {
   let [show, setShow] = useState(false);
@@ -95,10 +94,6 @@ function Signup() {
   const [otpStep, setOtpStep] = useState(false);
   const [otp, setOtp] = useState("");
   const [pendingUserId, setPendingUserId] = useState("");
-
-  // Animation variants
-  const containerV = useMemo(() => ({ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }), []);
-  const itemV = useMemo(() => ({ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 28 } } }), []);
 
   const handleSignUp = async (e) => {
     e.preventDefault();
@@ -168,21 +163,19 @@ function Signup() {
   };
 
   return (
-  <motion.main initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#23243a] dark:from-[#121212] dark:to-[#121212] flex flex-col items-center justify-center gap-6 px-4 py-10">
+  <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#23243a] dark:from-[#121212] dark:to-[#121212] flex flex-col items-center justify-center gap-6 px-4 py-10 animate-fade-in">
       {/* Logo */}
       <div className="flex justify-center">
-        <motion.img src={logo} alt="Logo" className="h-[90px] object-contain rounded shadow" whileHover={{ scale: 1.05 }} />
+        <img src={logo} alt="Logo" className="h-[90px] object-contain rounded shadow" />
       </div>
 
       {/* Signup Form or OTP Form */}
-      <AnimatePresence mode="wait" initial={false}>
       {!otpStep ? (
-  <motion.form key="signup" initial={{ scale: 0.98, opacity: 0, y: 8 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="card w-[90%] max-w-[420px] px-6 py-8 flex flex-col gap-4" onSubmit={handleSignUp}>
+  <form className="card w-[90%] max-w-[420px] px-6 py-8 flex flex-col gap-4 animate-scale-in" onSubmit={handleSignUp}>
         <h1 className="text-3xl font-extrabold text-[#1A1F71] dark:text-yellow-300 mb-1 text-center">Create account</h1>
         <p className="text-center text-gray-700 dark:text-yellow-200/90 -mt-1 mb-2 text-sm">It’s quick and easy.</p>
 
-        <motion.input
-          variants={itemV}
+        <input
           id="signup-first-name"
           name="firstName"
           autoComplete="given-name"
@@ -194,8 +187,7 @@ function Signup() {
           onChange={(e) => setFirstName(e.target.value)}
         />
 
-        <motion.input
-          variants={itemV}
+        <input
           id="signup-last-name"
           name="lastName"
           autoComplete="family-name"
@@ -207,8 +199,7 @@ function Signup() {
           onChange={(e) => setLastName(e.target.value)}
         />
 
-        <motion.input
-          variants={itemV}
+        <input
           id="signup-username"
           name="username"
           autoComplete="username"
@@ -220,8 +211,7 @@ function Signup() {
           onChange={(e) => setUserName(e.target.value)}
         />
 
-        <motion.input
-          variants={itemV}
+        <input
           id="signup-email"
           name="email"
           autoComplete="email"
@@ -232,7 +222,8 @@ function Signup() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <motion.div className="w-full h-[50px] relative transition-all" variants={itemV}>
+
+        <div className="w-full h-[50px] relative transition-all">
           <label htmlFor="signup-password" className="sr-only">Password</label>
           <input
             id="signup-password"
@@ -251,16 +242,16 @@ function Signup() {
           >
             {show ? "Hide" : "Show"}
           </span>
-        </motion.div>
+        </div>
 
         {/* Error Message */}
         {err && (
           <p className="text-center text-red-500 text-sm font-medium -mt-1">*{err}</p>
         )}
 
-          <motion.button whileHover={{ scale: loading ? 1 : 1.015 }} whileTap={{ scale: loading ? 1 : 0.99 }} className="btn-primary h-[48px] mt-1" disabled={loading}>
-            {loading ? <span className="inline-flex items-center gap-2"><span className="spinner" /> Sending OTP...</span> : "Sign Up"}
-          </motion.button>
+          <button className="btn-primary h-[48px] mt-1" disabled={loading}>
+            {loading ? "Sending OTP..." : "Sign Up"}
+          </button>
 
           <p className="text-center text-gray-600 dark:text-yellow-200 mt-2">
             Already have an account?{" "}
@@ -272,9 +263,9 @@ function Signup() {
               Sign In
             </button>
           </p>
-    </motion.form>
+        </form>
       ) : (
-  <motion.form key="otp" initial={{ scale: 0.98, opacity: 0, y: 8 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }} className="card w-[90%] max-w-[420px] px-6 py-8 flex flex-col gap-4" onSubmit={handleVerifyOtp}>
+  <form className="card w-[90%] max-w-[420px] px-6 py-8 flex flex-col gap-4 animate-scale-in" onSubmit={handleVerifyOtp}>
           <h1 className="text-2xl font-extrabold text-[#1A1F71] dark:text-yellow-300 mb-1 text-center">Verify OTP</h1>
           <p className="text-gray-700 dark:text-yellow-200/90 text-sm text-center mb-2">We sent a 6-digit code to {email}. Enter it below to finish signing up.</p>
           <input
@@ -305,15 +296,14 @@ function Signup() {
         className="flex-1 h-[44px] btn-primary"
               disabled={loading || otp.length !== 6}
             >
-              {loading ? <span className="inline-flex items-center gap-2"><span className="spinner" /> Verifying...</span> : "Verify"}
+              {loading ? "Verifying..." : "Verify"}
             </button>
           </div>
 
           <button type="button" onClick={handleResendOtp} className="mt-3 h-[44px] btn-secondary" disabled={loading}>Resend OTP</button>
-        </motion.form>
+        </form>
       )}
-    </AnimatePresence>
-    </motion.main>
+    </div>
   );
 }
 
