@@ -47,4 +47,4 @@ A modern, full‑stack social network platform (LinkedIn‑style) with realtime 
 - GitHub: https://github.com/yashveerji
 - Host Link: https://globalconnect-ys.onrender.com
 ## License
-This project is provided as‑is for learning/demo purposes. Add your preferred license file if you plan to distribute.
+This project is provided as‑is for learning/demo purposes.
