@@ -16,6 +16,7 @@ import { MdWork } from "react-icons/md";
 import { BsBookmarkHeartFill } from 'react-icons/bs';
 import { HiOutlineUser } from 'react-icons/hi';
 import { IoLogOutOutline } from 'react-icons/io5';
+import { FaGithub } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 
 function Nav() {
@@ -197,24 +198,38 @@ function Nav() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                     className="hidden md:flex flex-none items-center justify-center px-3"
                 >
-                    <a
-                        href="https://github.com/yashveerji"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Designed & Coded by Yashveer Singh (opens GitHub)"
-                        className="group inline-flex items-center gap-2 rounded-full border border-gray-200/70 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3 py-1.5 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-                    >
-                        <img
-                            src="https://github.com/yashveerji.png"
-                            alt="Yashveer Singh's Avatar"
-                            className="h-5 w-5 rounded-full ring-1 ring-black/5 dark:ring-white/10"
-                            loading="lazy"
-                        />
-                        <span className="text-[12px] leading-none text-gray-700 dark:text-gray-200">Designed & Coded by</span>
-                        <span className="text-[12px] font-semibold leading-none bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent group-hover:from-indigo-500 group-hover:to-pink-500">
-                            Yashveer Singh
-                        </span>
-                    </a>
+                    <div className="group inline-flex items-center gap-2 rounded-full border border-gray-200/70 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3 py-1.5 shadow-sm transition-all hover:shadow-md">
+                        {/* Main area -> Portfolio */}
+                        <a
+                            href="https://yashveerji-portfolio.onrender.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open Yashveer Singh's portfolio website"
+                            className="inline-flex items-center gap-2 pr-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 rounded"
+                        >
+                            <img
+                                src="https://github.com/yashveerji.png"
+                                alt="Yashveer Singh's Avatar"
+                                className="h-5 w-5 rounded-full ring-1 ring-black/5 dark:ring-white/10"
+                                loading="lazy"
+                            />
+                            <span className="text-[12px] leading-none text-gray-700 dark:text-gray-200">Designed & Coded by</span>
+                            <span className="text-[12px] font-semibold leading-none bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent group-hover:from-indigo-500 group-hover:to-pink-500">
+                                Yashveer Singh
+                            </span>
+                        </a>
+                        {/* GitHub icon link */}
+                        <a
+                            href="https://github.com/yashveerji"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open Yashveer Singh's GitHub profile"
+                            className="p-1 rounded-full hover:bg-gray-200/60 dark:hover:bg-white/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+                            title="GitHub"
+                        >
+                            <FaGithub className="h-4 w-4 text-gray-700 dark:text-gray-200" />
+                        </a>
+                    </div>
                 </motion.div>
 
                 {/* Search Results */}
