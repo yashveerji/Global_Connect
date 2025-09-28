@@ -16,6 +16,7 @@ import { MdWork } from "react-icons/md";
 import { BsBookmarkHeartFill } from 'react-icons/bs';
 import { HiOutlineUser } from 'react-icons/hi';
 import { IoLogOutOutline } from 'react-icons/io5';
+import { motion } from 'framer-motion';
 
 function Nav() {
     const [activeSearch, setActiveSearch] = useState(false)
@@ -188,6 +189,33 @@ function Nav() {
                         />
                     </form>
                 </div>
+
+                {/* Center attribution */}
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                    className="hidden md:flex flex-none items-center justify-center px-3"
+                >
+                    <a
+                        href="https://github.com/yashveerji"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Designed & Coded by Yashveer Singh (opens GitHub)"
+                        className="group inline-flex items-center gap-2 rounded-full border border-gray-200/70 dark:border-white/10 bg-white/60 dark:bg-white/5 backdrop-blur px-3 py-1.5 shadow-sm transition-all hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+                    >
+                        <img
+                            src="https://github.com/yashveerji.png"
+                            alt="Yashveer Singh's Avatar"
+                            className="h-5 w-5 rounded-full ring-1 ring-black/5 dark:ring-white/10"
+                            loading="lazy"
+                        />
+                        <span className="text-[12px] leading-none text-gray-700 dark:text-gray-200">Designed & Coded by</span>
+                        <span className="text-[12px] font-semibold leading-none bg-gradient-to-r from-indigo-600 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent group-hover:from-indigo-500 group-hover:to-pink-500">
+                            Yashveer Singh
+                        </span>
+                    </a>
+                </motion.div>
 
                 {/* Search Results */}
                 {searchData.length > 0 && (
