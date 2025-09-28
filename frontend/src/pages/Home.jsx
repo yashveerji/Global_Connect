@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import dp from "../assets/dp.webp";
 import { FiPlus, FiCamera } from "react-icons/fi";
 import { userDataContext } from "../context/UserContext";
@@ -26,6 +26,12 @@ function Home() {
   const [loadingFeed, setLoadingFeed] = useState(true);
 
   const image = useRef();
+
+  // Animations
+  const pageVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.25 } } };
+  const cardIn = { hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
+  const listVariants = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
+  const itemVariants = { hidden: { opacity: 0, y: 6 }, visible: { opacity: 1, y: 0, transition: { duration: 0.22 } } };
 
   const handleImage = (e) => {
     const file = e.target.files[0];
@@ -74,13 +80,18 @@ function Home() {
   }, [uploadPost]);
 
   return (
-    <div className="w-full min-h-screen flex flex-col lg:flex-row p-5 gap-5 relative">
+    <motion.div
+      className="w-full min-h-screen flex flex-col lg:flex-row p-5 gap-5 relative"
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+    >
       {edit && <EditProfile />}
 
       {/* Left Sidebar */}
       <div className="w-full lg:w-[25%] flex flex-col gap-5 mt-[90px]">
         {/* Profile Card */}
-        <div className="card p-5 flex flex-col items-center relative">
+        <motion.div className="card p-5 flex flex-col items-center relative" variants={cardIn} initial="hidden" animate="visible">
           <div
             className="relative w-[80px] h-[80px] rounded-full overflow-hidden border-4 cursor-pointer"
             onClick={() => setEdit(true)}
@@ -101,19 +112,20 @@ function Home() {
           >
             Edit Profile
           </button>
-        </div>
+        </motion.div>
 
         {/* Suggested Users */}
-        <div className="card p-4">
+        <motion.div className="card p-4" variants={cardIn} initial="hidden" animate="visible">
           <h3 className="font-semibold text-lg mb-3 heading-accent">Suggested Users</h3>
-          <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto hide-scrollbar">
+          <motion.div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto hide-scrollbar" variants={listVariants} initial="hidden" animate="visible">
             {suggestedUser.length > 0 ? (
               suggestedUser.map((su, i) => (
-                <div
+                <motion.div
                   key={i}
                   className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition border border-transparent hover-lift"
                   onClick={() => handleGetProfile(su.userName)}
                   style={{ background: 'transparent' }}
+                  variants={itemVariants}
                 >
                   <div className="w-[45px] h-[45px] rounded-full overflow-hidden border-2"
                        style={{ borderColor: 'var(--gc-primary)' }}>
@@ -127,24 +139,29 @@ function Home() {
                     <span className="font-semibold">{`${su.firstName} ${su.lastName}`}</span>
                     <span className="text-xs text-gray-600 dark:text-[var(--gc-muted)]">{su.headline}</span>
                   </div>
-                </div>
+                </motion.div>
               ))
             ) : (
               <p className="text-gray-600 dark:text-[var(--gc-muted)]">No suggestions</p>
             )}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
 
       {/* Center Feed */}
       <div className="w-full lg:w-[50%] flex flex-col gap-5 mt-[90px]">
         {/* + Post Button */}
-        <button
+        <motion.button
           className="w-full btn-primary py-3 rounded-xl flex items-center justify-center gap-2 hover-lift"
           onClick={() => setUploadPost(true)}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.05 }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
           <FiPlus size={20} /> Add Post
-        </button>
+        </motion.button>
 
         {/* Posts */}
         {loadingFeed && postData.length === 0 && (
@@ -187,54 +204,70 @@ function Home() {
       {/* Right Sidebar: AI Assistant */}
       <AIChat />
       {/* Post Modal */}
-      {uploadPost && (
-        <>
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={() => setUploadPost(false)}
-          />
-          <div className="fixed top-1/2 left-1/2 w-[90%] max-w-md card p-5 transform -translate-x-1/2 -translate-y-1/2 z-50">
-            <div className="flex justify-between items-center">
-              <h2 className="font-semibold text-lg">Create Post</h2>
-              <RxCross1
-                className="cursor-pointer"
-                onClick={() => setUploadPost(false)}
-              />
-            </div>
-            <textarea
-              className="input mt-3 resize-none h-32"
-              placeholder="What's on your mind?"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+      <AnimatePresence>
+        {uploadPost && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-black z-40"
+              onClick={() => setUploadPost(false)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
             />
-            {frontendImage && (
-              <img
-                src={frontendImage}
-                alt="Preview"
-                className="mt-3 w-full rounded-lg border border-gray-200 dark:border-[var(--gc-border)]"
+            <motion.div
+              className="fixed top-1/2 left-1/2 w-[90%] max-w-md card p-5 transform -translate-x-1/2 -translate-y-1/2 z-50"
+              role="dialog"
+              aria-modal="true"
+              initial={{ opacity: 0, scale: 0.98, y: -6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.98, y: -6 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="font-semibold text-lg">Create Post</h2>
+                <RxCross1
+                  className="cursor-pointer"
+                  onClick={() => setUploadPost(false)}
+                />
+              </div>
+              <textarea
+                className="input mt-3 resize-none h-32"
+                placeholder="What's on your mind?"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
-            )}
-            <div className="flex justify-between items-center mt-4">
-              <BsImage
-                className="cursor-pointer"
-                style={{ color: 'var(--gc-primary)' }}
-                onClick={() => image.current.click()}
-              />
-              <input type="file" ref={image} hidden onChange={handleImage} />
-              <button
-                className="btn-primary"
-                onClick={handleUploadPost}
-                disabled={posting}
-              >
-                {posting ? "Posting..." : "Post"}
-              </button>
-            </div>
-          
-          </div>
-         
-        </>
-      )}
-    </div>
+              {frontendImage && (
+                <motion.img
+                  src={frontendImage}
+                  alt="Preview"
+                  className="mt-3 w-full rounded-lg border border-gray-200 dark:border-[var(--gc-border)]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                />
+              )}
+              <div className="flex justify-between items-center mt-4">
+                <BsImage
+                  className="cursor-pointer"
+                  style={{ color: 'var(--gc-primary)' }}
+                  onClick={() => image.current.click()}
+                />
+                <input type="file" ref={image} hidden onChange={handleImage} />
+                <motion.button
+                  className="btn-primary"
+                  onClick={handleUploadPost}
+                  disabled={posting}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {posting ? "Posting..." : "Post"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
