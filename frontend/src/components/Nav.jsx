@@ -45,7 +45,7 @@ function Nav() {
         </motion.span>
     );
     const [activeSearch, setActiveSearch] = useState(false)
-    const { userData, setUserData, handleGetProfile } = useContext(userDataContext)
+    const { userData, setUserData, handleGetProfile, unreadCount } = useContext(userDataContext)
     const [showPopup, setShowPopup] = useState(false)
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
     const navigate = useNavigate()
@@ -338,7 +338,14 @@ function Nav() {
                         aria-label="Notifications"
                     >
                         <GlowIcon active={isActive("/notification")}>
-                            <IoNotificationsSharp className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                            <span className="relative">
+                                <IoNotificationsSharp className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                                {unreadCount > 0 && (
+                                  <span className="absolute -top-1 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center shadow">
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                  </span>
+                                )}
+                            </span>
                         </GlowIcon>
                         <span className='hidden md:block'>Notifications</span>
                     </button>

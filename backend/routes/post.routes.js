@@ -2,7 +2,7 @@
 import express from "express"
 import isAuth from "../middlewares/isAuth.js"
 import upload from "../middlewares/multer.js"
-import { comment, createPost, getPost, like, deletePost, deleteComment, repost, quoteRepost, toggleSavePost, getSavedPosts, searchPosts, likeComment, replyToComment, likeReply } from "../controllers/post.Controllers.js"
+import { comment, createPost, getPost, like, deletePost, deleteComment, repost, quoteRepost, toggleSavePost, getSavedPosts, searchPosts, likeComment, replyToComment, likeReply, deleteReply, getComments } from "../controllers/post.Controllers.js"
 
 const postRouter=express.Router()
 postRouter.post("/repost/:id", isAuth, repost);
@@ -18,6 +18,9 @@ postRouter.post("/comment/:id",isAuth,comment)
 postRouter.post("/comment/:postId/:commentId/like", isAuth, likeComment)
 postRouter.post("/comment/:postId/:commentId/reply", isAuth, replyToComment)
 postRouter.post("/comment/:postId/:commentId/reply/:replyId/like", isAuth, likeReply)
+postRouter.delete("/comment/:postId/:commentId/reply/:replyId", isAuth, deleteReply)
+// Comments pagination (optional dedicated endpoint)
+postRouter.get("/:postId/comments", isAuth, getComments)
 postRouter.delete("/delete/:id", isAuth, deletePost);
 postRouter.delete("/comment/:postId/:commentId", isAuth, deleteComment);
 // Saved posts

@@ -14,6 +14,8 @@ let [profileData,setProfileData]=useState([])
 let navigate=useNavigate()
 const socketRef = useRef(null)
 const [socket, setSocket] = useState(null)
+// Global unread notification count (simple client-side)
+const [unreadCount, setUnreadCount] = useState(0)
 const getCurrentUser=async ()=>{
     try {
         const cacheBust = `&_=${Date.now()}`;
@@ -146,6 +148,18 @@ useEffect(() => {
       return { ...p, comment: list };
     }));
   };
+  const onReplyDeleted = ({ postId, commentId, replyId }) => {
+    if (!postId || !commentId || !replyId) return;
+    setPostData(prev => prev.map(p => {
+      if ((p._id || p.id) !== postId) return p;
+      const list = Array.isArray(p.comment) ? p.comment.map(c => {
+        if ((c._id || c.id) !== commentId) return c;
+        const reps = (c.replies || []).filter(r => (r._id || r.id) !== replyId);
+        return { ...c, replies: reps };
+      }) : [];
+      return { ...p, comment: list };
+    }));
+  };
 
   sock.on('connect', onConnect);
   sock.on('postCreated', onPostCreated);
@@ -153,6 +167,7 @@ useEffect(() => {
   sock.on('likeUpdated', onLikeUpdated);
   sock.on('commentAdded', onCommentAdded);
   sock.on('commentDeleted', onCommentDeleted);
+  sock.on('replyDeleted', onReplyDeleted);
   sock.on('commentLikeUpdated', onCommentLikeUpdated);
   sock.on('commentReplied', onCommentReplied);
   sock.on('replyLikeUpdated', onReplyLikeUpdated);
@@ -164,6 +179,7 @@ useEffect(() => {
   sock.off('likeUpdated', onLikeUpdated);
   sock.off('commentAdded', onCommentAdded);
   sock.off('commentDeleted', onCommentDeleted);
+  sock.off('replyDeleted', onReplyDeleted);
   sock.off('commentLikeUpdated', onCommentLikeUpdated);
   sock.off('commentReplied', onCommentReplied);
   sock.off('replyLikeUpdated', onReplyLikeUpdated);
@@ -196,7 +212,9 @@ useEffect(() => {
     profileData,
     setProfileData,
   // expose app-wide socket (reactive)
-  socket
+  socket,
+  unreadCount,
+  setUnreadCount
   }
   return (
     <userDataContext.Provider value={value}>

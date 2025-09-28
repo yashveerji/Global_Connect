@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 function Notification() {
   let { serverUrl } = useContext(authDataContext);
   let [notificationData, setNotificationData] = useState([]);
-  let { userData } = useContext(userDataContext);
+  let { userData, setUnreadCount } = useContext(userDataContext);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all | like | comment | connectionAccepted
   const [page, setPage] = useState(1);
@@ -28,11 +28,14 @@ function Notification() {
   const handleGetNotification = async (append = false) => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page, limit: 20 };
       let result = await axios.get(serverUrl + "/api/notification/get", { withCredentials: true, params });
-      const list = Array.isArray(result.data) ? result.data : [];
-      setNotificationData(prev => append ? [...prev, ...list] : list);
-      setHasMore(list.length > 0);
+      const { items = [], hasMore: more = false, total = 0 } = result.data || {};
+      setNotificationData(prev => append ? [...prev, ...items] : items);
+      setHasMore(Boolean(more));
+      // update unread badge
+      const unread = (append ? [...notificationData, ...items] : items).filter(n => !n.read).length;
+      setUnreadCount(unread);
     } catch (error) {
       console.log(error);
       toast?.error('Failed to load notifications');
@@ -100,21 +103,33 @@ function Notification() {
   const markRead = async (id) => {
     try {
       await axios.patch(serverUrl + `/api/notification/read/${id}`, {}, { withCredentials: true });
-      setNotificationData((prev) => prev.map(n => n._id === id ? { ...n, read: true } : n));
+      setNotificationData((prev) => {
+        const next = prev.map(n => n._id === id ? { ...n, read: true } : n);
+        setUnreadCount(next.filter(n => !n.read).length);
+        return next;
+      });
     } catch {}
   };
 
   const markUnread = async (id) => {
     try {
       await axios.patch(serverUrl + `/api/notification/unread/${id}`, {}, { withCredentials: true });
-      setNotificationData((prev) => prev.map(n => n._id === id ? { ...n, read: false } : n));
+      setNotificationData((prev) => {
+        const next = prev.map(n => n._id === id ? { ...n, read: false } : n);
+        setUnreadCount(next.filter(n => !n.read).length);
+        return next;
+      });
     } catch {}
   };
 
   const markAllRead = async () => {
     try {
       await axios.patch(serverUrl + `/api/notification/read-all`, {}, { withCredentials: true });
-      setNotificationData((prev) => prev.map(n => ({ ...n, read: true })));
+      setNotificationData((prev) => {
+        const next = prev.map(n => ({ ...n, read: true }));
+        setUnreadCount(0);
+        return next;
+      });
     } catch {}
   };
 
@@ -238,7 +253,7 @@ function Notification() {
           ))}
           {/* Load More placeholder for future server paging */}
           {hasMore && (
-            <button className="btn-secondary mx-auto mt-2" onClick={() => handleGetNotification(true)}>Load more</button>
+            <button className="btn-secondary mx-auto mt-2" onClick={() => { setPage(p => p + 1); handleGetNotification(true); }}>Load more</button>
           )}
         </div>
       ) : (

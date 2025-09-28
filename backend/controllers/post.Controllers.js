@@ -243,6 +243,56 @@ export const likeReply = async (req, res) => {
     }
 };
 
+export const deleteReply = async (req, res) => {
+    try {
+        const { postId, commentId, replyId } = req.params;
+        const userId = req.userId;
+        const post = await Post.findById(postId).select('author comment.user comment.replies.user');
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const c = post.comment.id?.(commentId) || post.comment.find?.(x => x._id?.toString?.() === commentId);
+        if (!c) return res.status(404).json({ message: 'Comment not found' });
+        const r = (c.replies || []).find(x => x._id?.toString?.() === replyId);
+        if (!r) return res.status(404).json({ message: 'Reply not found' });
+        const isPostOwner = post.author?.toString?.() === userId;
+        const isCommentOwner = c.user?.toString?.() === userId;
+        const isReplyOwner = r.user?.toString?.() === userId;
+        if (!(isPostOwner || isCommentOwner || isReplyOwner)) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+        await Post.updateOne({ _id: postId, 'comment._id': commentId }, { $pull: { 'comment.$.replies': { _id: replyId } } });
+        io.emit('replyDeleted', { postId, commentId, replyId });
+        return res.status(200).json({ message: 'Reply deleted', replyId });
+    } catch (e) {
+        console.error('delete reply error', e);
+        return res.status(500).json({ message: 'delete reply error' });
+    }
+};
+
+// Paginated comments for a post (simple in-memory slice after fetch)
+export const getComments = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit || '10', 10), 1), 100);
+        const post = await Post.findById(postId)
+            .select('comment')
+            .populate('comment.user', 'firstName lastName profileImage headline userName')
+            .populate('comment.replies.user', 'firstName lastName profileImage headline userName');
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const all = Array.isArray(post.comment) ? [...post.comment] : [];
+        // ensure sorted oldest -> newest (ascending by createdAt)
+        all.sort((a,b) => new Date(a.createdAt||0) - new Date(b.createdAt||0));
+        const total = all.length;
+        const start = (page - 1) * limit;
+        const items = all.slice(start, start + limit);
+        const hasMore = page * limit < total;
+        return res.status(200).json({ page, limit, total, hasMore, items });
+    } catch (e) {
+        console.error('getComments error', e);
+        return res.status(500).json({ message: 'get comments error' });
+    }
+};
+
 export const deletePost = async (req, res) => {
     try {
         const postId = req.params.id;

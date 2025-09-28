@@ -1,15 +1,24 @@
 import Notification from "../models/notification.model.js"
 
-export const getNotifications=async (req,res)=>{
+export const getNotifications = async (req, res) => {
     try {
-        
-    let notification=await Notification.find({receiver:req.userId})
-    .sort({ createdAt: -1 })
-    .populate("relatedUser","firstName lastName profileImage userName")
-    .populate("relatedPost","image description")
-    return res.status(200).json(notification)
+        const page = Math.max(parseInt(req.query.page || '1', 10), 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10), 1), 100);
+        const skip = (page - 1) * limit;
+        const filter = { receiver: req.userId };
+        const [items, total] = await Promise.all([
+            Notification.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate("relatedUser","firstName lastName profileImage userName")
+                .populate("relatedPost","image description"),
+            Notification.countDocuments(filter)
+        ]);
+        const hasMore = page * limit < total;
+        return res.status(200).json({ page, limit, total, hasMore, items });
     } catch (error) {
-        return res.status(500).json({message:`get notification error ${error}`})
+        return res.status(500).json({ message: `get notification error ${error}` });
     }
 }
 export const deleteNotification=async (req,res)=>{

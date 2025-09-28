@@ -94,6 +94,28 @@ function Post(props) {
       setComments(prev);
     }});
   };
+  // Delete reply
+  const handleDeleteReply = async (commentId, replyId) => {
+    if (!postId || !commentId || !replyId) return;
+    if (!window.confirm('Delete this reply?')) return;
+    const prev = comments;
+    setComments(prev => prev.map(c => c._id === commentId ? { ...c, replies: (c.replies || []).filter(r => r._id !== replyId) } : c));
+    let canceled = false;
+    const commit = async () => {
+      if (canceled) return;
+      try {
+        await axios.delete(`${serverUrl}/api/post/comment/${postId}/${commentId}/reply/${replyId}`, { withCredentials: true });
+      } catch (e) {
+        // rollback
+        setComments(prev);
+        toast?.error?.('Failed to delete reply');
+      }
+    };
+    const timer = setTimeout(commit, 5000);
+    toast?.action?.({ text: 'Reply deleted', actionText: 'Undo', onAction: () => {
+      canceled = true; clearTimeout(timer); setComments(prev);
+    }});
+  };
   const {
     id, _id, author = {}, like = [], comment = [], description = "",
     image, createdAt, repostedFrom,
@@ -898,6 +920,10 @@ function Post(props) {
                               {(r.likes || []).length > 0 && <span>· {(r.likes || []).length}</span>}
                             </button>
                             <span>{r.createdAt ? moment(r.createdAt).fromNow() : ''}</span>
+                            {/* Delete reply if reply owner or post owner */}
+                            {((r.user?._id && r.user._id === userData?._id) || (author?._id && author._id === userData?._id)) && (
+                              <button className="text-red-500 hover:underline" onClick={() => handleDeleteReply(com._id, r._id)}>Delete</button>
+                            )}
                           </div>
                         </div>
                       </div>
