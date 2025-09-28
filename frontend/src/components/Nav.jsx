@@ -20,6 +20,30 @@ import { FaGithub } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 
 function Nav() {
+    // Spring config for snappy, subtle interactions
+    const spring = { type: 'spring', stiffness: 500, damping: 28, mass: 0.8 };
+    // Reusable glow wrapper for icons
+    const GlowIcon = ({ children, active = false }) => (
+        <motion.span
+            className="relative inline-flex"
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.95, y: 0 }}
+            transition={spring}
+        >
+            <motion.span
+                className="absolute -inset-3 -z-10 rounded-full blur-md"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: active ? 0.25 : 0 }}
+                whileHover={{ opacity: 0.6, scale: 1 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                style={{
+                    background:
+                        'radial-gradient(72% 72% at 50% 40%, rgba(99,102,241,0.55), rgba(168,85,247,0.35) 55%, rgba(236,72,153,0.22) 75%, transparent)',
+                }}
+            />
+            <span className="relative">{children}</span>
+        </motion.span>
+    );
     const [activeSearch, setActiveSearch] = useState(false)
     const { userData, setUserData, handleGetProfile } = useContext(userDataContext)
     const [showPopup, setShowPopup] = useState(false)
@@ -269,51 +293,63 @@ function Nav() {
                 {/* Right: Nav Items */}
                 <nav className='flex items-center gap-4' aria-label="Main navigation links">
                     <button
-                        className={`hidden lg:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                        className={`group hidden lg:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/")}
                         aria-label="Home"
                     >
-                        <TiHome className='w-[23px] h-[23px] mb-1' />
+                        <GlowIcon active={isActive("/")}>
+                            <TiHome className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                        </GlowIcon>
                         <span>Home</span>
                     </button>
                     <button
-                        className={`hidden md:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/network") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                        className={`group hidden md:flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/network") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/network")}
-                        aria-label="My Networks"
+                        aria-label="My Network"
                     >
-                        <FaUserGroup className='w-[23px] h-[23px] mb-1' />
-                        <span>My Networks</span>
+                        <GlowIcon active={isActive("/network")}>
+                            <FaUserGroup className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                        </GlowIcon>
+                        <span>My Network</span>
                     </button>
                     <button
-                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/chat") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                        className={`group flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/chat") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/chat")}
                         aria-label="Chat"
                     >
-                        <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px] mb-1' />
+                        <GlowIcon active={isActive("/chat")}>
+                            <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                        </GlowIcon>
                         <span className='hidden md:block'>Chat</span>
                     </button>
                     <button
-                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/jobs") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                        className={`group flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/jobs") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/jobs")}
                         aria-label="Jobs"
                     >
-                        <MdWork className="w-[23px] h-[23px] mb-1" />
+                        <GlowIcon active={isActive("/jobs")}>
+                            <MdWork className="w-[23px] h-[23px] mb-1 transition-transform duration-200" />
+                        </GlowIcon>
                         <span className="hidden md:block">Jobs</span>
                     </button>
                     <button
-                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/notification") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                        className={`group flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/notification") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate("/notification")}
                         aria-label="Notifications"
                     >
-                        <IoNotificationsSharp className='w-[23px] h-[23px] mb-1' />
+                        <GlowIcon active={isActive("/notification")}>
+                            <IoNotificationsSharp className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                        </GlowIcon>
                         <span className='hidden md:block'>Notifications</span>
                     </button>
                     <button
-                        className={`flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/saved") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
+                        className={`group flex flex-col items-center cursor-pointer rounded-full px-4 py-2 font-semibold text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 ${isActive("/saved") ? "bg-indigo-500 text-white shadow-lg" : "text-gray-700 dark:text-gray-200 hover:bg-indigo-100 dark:hover:bg-indigo-900"}`}
                         onClick={() => navigate('/saved')}
                         aria-label="Saved"
                     >
-                        <BsBookmarkHeartFill className='w-[23px] h-[23px] mb-1' />
+                        <GlowIcon active={isActive("/saved")}>
+                            <BsBookmarkHeartFill className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                        </GlowIcon>
                         <span className='hidden md:block'>Saved</span>
                     </button>
                     {/* Dark/Light Mode Toggle */}

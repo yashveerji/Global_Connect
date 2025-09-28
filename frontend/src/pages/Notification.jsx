@@ -11,6 +11,7 @@ import AutolinkText from '../components/ui/Autolink';
 import { transformCloudinary } from '../utils/cloudinary';
 import moment from 'moment';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 function Notification() {
   let { serverUrl } = useContext(authDataContext);
@@ -18,15 +19,20 @@ function Notification() {
   let { userData } = useContext(userDataContext);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all | like | comment | connectionAccepted
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const toast = useToastInternal?.();
   const confirm = useConfirm?.();
   const navigate = useNavigate();
 
-  const handleGetNotification = async () => {
+  const handleGetNotification = async (append = false) => {
     try {
       setLoading(true);
-      let result = await axios.get(serverUrl + "/api/notification/get", { withCredentials: true });
-      setNotificationData(Array.isArray(result.data) ? result.data : []);
+      const params = {};
+      let result = await axios.get(serverUrl + "/api/notification/get", { withCredentials: true, params });
+      const list = Array.isArray(result.data) ? result.data : [];
+      setNotificationData(prev => append ? [...prev, ...list] : list);
+      setHasMore(list.length > 0);
     } catch (error) {
       console.log(error);
       toast?.error('Failed to load notifications');
@@ -98,6 +104,13 @@ function Notification() {
     } catch {}
   };
 
+  const markUnread = async (id) => {
+    try {
+      await axios.patch(serverUrl + `/api/notification/unread/${id}`, {}, { withCredentials: true });
+      setNotificationData((prev) => prev.map(n => n._id === id ? { ...n, read: false } : n));
+    } catch {}
+  };
+
   const markAllRead = async () => {
     try {
       await axios.patch(serverUrl + `/api/notification/read-all`, {}, { withCredentials: true });
@@ -112,11 +125,11 @@ function Notification() {
 
   return (
     <>
-      <Nav />
-  <div className="w-full min-h-screen px-[20px] flex flex-col items-center animate-fade-in">
+    <Nav />
+  <div className="w-full min-h-screen px-[20px] flex flex-col items-center animate-fade-in pt-[88px]">
 
       {/* Top Bar */}
-  <div className="w-full max-w-[900px] sticky top-[80px] z-10 card p-4 mt-5">
+  <div className="w-full max-w-[900px] sticky top-[88px] z-10 card p-4">
         <div className="flex items-center gap-3">
           <span className="font-semibold text-lg flex-1">Notifications ({notificationData.length})</span>
           <select value={filter} onChange={e=>setFilter(e.target.value)} className="input text-sm w-44" aria-label="Filter notifications">
@@ -154,62 +167,79 @@ function Notification() {
             <div key={label} className="flex flex-col gap-2">
               <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-[var(--gc-muted)] px-2">{label}</div>
               <div className="flex flex-col divide-y divide-gray-200 dark:divide-[var(--gc-border)]">
-                {group.map((noti) => (
-                  <div
-                    key={noti._id}
-                    className={`flex flex-col gap-2 p-4 border-l-4 ${typeColor(noti.type)} hover:bg-gray-50 dark:hover:bg-[var(--gc-surface-soft)] transition-theme cursor-pointer ${!noti.read ? 'opacity-100' : 'opacity-80'}`}
-                    onClick={() => onClickNotification(noti)}
-                    role="button"
-                    aria-pressed={false}
-                  >
-                    <div className="flex justify-between items-center">
-                      {/* User Info */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-[50px] h-[50px] rounded-full overflow-hidden border border-gray-200 dark:border-[var(--gc-border)]">
-                          <img
-                            src={noti.relatedUser?.profileImage || dp}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
+                <AnimatePresence initial={false}>
+                  {group.map((noti) => (
+                    <motion.div
+                      key={noti._id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className={`flex flex-col gap-2 p-4 border-l-4 ${typeColor(noti.type)} hover:bg-gray-50 dark:hover:bg-[var(--gc-surface-soft)] transition-theme cursor-pointer ${!noti.read ? 'opacity-100' : 'opacity-80'}`}
+                      onClick={() => onClickNotification(noti)}
+                      role="button"
+                      aria-pressed={false}
+                    >
+                      <div className="flex justify-between items-center">
+                        {/* User Info */}
+                        <div className="flex items-center gap-3">
+                          <div className="w-[50px] h-[50px] rounded-full overflow-hidden border border-gray-200 dark:border-[var(--gc-border)]">
+                            <img
+                              src={noti.relatedUser?.profileImage || dp}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                          <div className="text-[16px] font-medium">
+                            {`${noti.relatedUser?.firstName || ""} ${noti.relatedUser?.lastName || ""} ${handleMessage(noti.type)}`}
+                            {!noti.read && <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-500 align-middle" aria-label="unread" />}
+                            <span className="ml-2 text-xs text-gray-500">{moment(noti.createdAt).fromNow()}</span>
+                          </div>
                         </div>
-                        <div className="text-[16px] font-medium">
-                          {`${noti.relatedUser?.firstName || ""} ${noti.relatedUser?.lastName || ""} ${handleMessage(noti.type)}`}
-                          {!noti.read && <span className="ml-2 inline-block w-2 h-2 rounded-full bg-blue-500 align-middle" aria-label="unread" />}
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="px-2 py-1 text-xs rounded-full border hover:bg-gray-100 dark:hover:bg-gray-900"
+                            onClick={(e) => { e.stopPropagation(); noti.read ? markUnread(noti._id) : markRead(noti._id); }}
+                          >{noti.read ? 'Mark unread' : 'Mark read'}</button>
+                          <RxCross1
+                            className="w-6 h-6 text-gray-500 dark:text-[var(--gc-muted)] hover:text-red-500 cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteNotification(noti._id); }}
+                            aria-label="Delete notification"
+                            role="button"
+                            tabIndex={0}
+                          />
                         </div>
                       </div>
 
-                      {/* Delete Icon */}
-                      <RxCross1
-                        className="w-6 h-6 text-gray-500 dark:text-[var(--gc-muted)] hover:text-red-500 cursor-pointer"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteNotification(noti._id); }}
-                        aria-label="Delete notification"
-                        role="button"
-                        tabIndex={0}
-                      />
-                    </div>
-
-                    {/* Related Post */}
-                    {noti.relatedPost && (
-                      <div className="flex items-center gap-3 ml-[60px]">
-                        <div className="w-[100px] h-[60px] rounded overflow-hidden border border-gray-200 dark:border-[var(--gc-border)]">
-                          <img
-                            src={transformCloudinary(noti.relatedPost.image, { w: 300, h: 180 })}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                          />
+                      {/* Related Post */}
+                      {noti.relatedPost && (
+                        <div className="flex items-center gap-3 ml-[60px]">
+                          <div className="w-[100px] h-[60px] rounded overflow-hidden border border-gray-200 dark:border-[var(--gc-border)]">
+                            <img
+                              src={transformCloudinary(noti.relatedPost.image, { w: 300, h: 180 })}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                          <p className="text-gray-600 dark:text-[var(--gc-muted)] text-sm truncate max-w-[600px]">
+                            <AutolinkText text={noti.relatedPost.description} />
+                          </p>
                         </div>
-                        <p className="text-gray-600 dark:text-[var(--gc-muted)] text-sm truncate max-w-[600px]">
-                          <AutolinkText text={noti.relatedPost.description} />
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             </div>
           ))}
+          {/* Load More placeholder for future server paging */}
+          {hasMore && (
+            <button className="btn-secondary mx-auto mt-2" onClick={() => handleGetNotification(true)}>Load more</button>
+          )}
         </div>
       ) : (
   <div className="text-gray-600 dark:text-[var(--gc-muted)] mt-10">No notifications to show.</div>

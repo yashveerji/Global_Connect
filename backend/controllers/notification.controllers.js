@@ -53,3 +53,13 @@ export const markAllRead = async (req, res) => {
         return res.status(500).json({ message: `mark all read error ${error}` });
     }
 }
+
+export const markUnread = async (req, res) => {
+    try {
+        const { id } = req.params;
+        await Notification.findOneAndUpdate({ _id: id, receiver: req.userId }, { $set: { read: false } });
+        return res.status(200).json({ message: 'marked unread' });
+    } catch (error) {
+        return res.status(500).json({ message: `mark unread error ${error}` });
+    }
+}

@@ -5,6 +5,7 @@ import { FaRegCommentDots } from "react-icons/fa";
 import { BiLike, BiSolidLike } from "react-icons/bi";
 import { REACTIONS } from "./Reactions";
 import { LuSendHorizontal } from "react-icons/lu";
+import { AiOutlineLike, AiFillLike } from 'react-icons/ai';
 import axios from 'axios';
 import { authDataContext } from '../context/AuthContext';
 import { userDataContext } from '../context/UserContext';
@@ -169,6 +170,11 @@ function Post(props) {
   };
   const [commentContent, setCommentContent] = useState("");
   const [comments, setComments] = useState(comment || []);
+  const [replyFor, setReplyFor] = useState(null); // commentId being replied to
+  const [replyContent, setReplyContent] = useState('');
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionList, setMentionList] = useState([]);
+  const mentionTimer = useRef(null);
   const [showComment, setShowComment] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
@@ -246,6 +252,83 @@ function Post(props) {
     } finally {
       setIsSubmittingComment(false);
     }
+  };
+
+  // Like a comment
+  const likeComment = async (commentId) => {
+    if (!postId || !commentId) return;
+    setComments(prev => prev.map(c => c._id === commentId ? { ...c, likes: toggleId(c.likes, userData?._id) } : c));
+    try {
+      const res = await axios.post(`${serverUrl}/api/post/comment/${postId}/${commentId}/like`, {}, { withCredentials: true });
+      setComments(prev => prev.map(c => c._id === commentId ? { ...c, likes: res.data?.likes || [] } : c));
+    } catch {
+      setComments(prev => prev.map(c => c._id === commentId ? { ...c, likes: toggleId(c.likes, userData?._id) } : c));
+    }
+  };
+
+  // Reply to a comment
+  const submitReply = async (e) => {
+    e.preventDefault();
+    if (!postId || !replyFor) return;
+    const content = replyContent.trim(); if (!content) return;
+    const tempId = `r-${Date.now()}`;
+    // optimistic
+    setComments(prev => prev.map(c => c._id === replyFor ? {
+      ...c,
+      replies: [ ...(c.replies || []), { _id: tempId, content, user: { _id: userData?._id, firstName: userData?.firstName, lastName: userData?.lastName, profileImage: userData?.profileImage }, createdAt: new Date().toISOString(), likes: [], optimistic: true } ]
+    } : c));
+    setReplyContent(''); setReplyFor(null);
+    try {
+      const res = await axios.post(`${serverUrl}/api/post/comment/${postId}/${tempId.replace(/^r-/, '') === replyFor ? replyFor : replyFor}/reply`, { content }, { withCredentials: true });
+      // server returns full replies for that comment
+      const { replies } = res.data || {};
+      setComments(prev => prev.map(c => c._id === replyFor ? { ...c, replies: replies || [] } : c));
+    } catch {
+      // rollback
+      setComments(prev => prev.map(c => c._id === replyFor ? { ...c, replies: (c.replies || []).filter(r => r._id !== tempId) } : c));
+    }
+  };
+
+  const likeReply = async (commentId, replyId) => {
+    if (!postId || !commentId || !replyId) return;
+    setComments(prev => prev.map(c => c._id === commentId ? { ...c, replies: (c.replies||[]).map(r => r._id === replyId ? { ...r, likes: toggleId(r.likes, userData?._id) } : r) } : c));
+    try {
+      const res = await axios.post(`${serverUrl}/api/post/comment/${postId}/${commentId}/reply/${replyId}/like`, {}, { withCredentials: true });
+      setComments(prev => prev.map(c => c._id === commentId ? { ...c, replies: (c.replies||[]).map(r => r._id === replyId ? { ...r, likes: res.data?.likes || [] } : r) } : c));
+    } catch {
+      setComments(prev => prev.map(c => c._id === commentId ? { ...c, replies: (c.replies||[]).map(r => r._id === replyId ? { ...r, likes: toggleId(r.likes, userData?._id) } : r) } : c));
+    }
+  };
+
+  const toggleId = (arr = [], id) => {
+    if (!id) return arr;
+    const has = (arr || []).some(x => x?.toString?.() === id?.toString?.());
+    return has ? (arr || []).filter(x => x?.toString?.() !== id?.toString?.()) : [ ...(arr || []), id ];
+  };
+
+  // Mentions autocomplete (client-side user search)
+  useEffect(() => {
+    const q = (commentContent + ' ' + replyContent).match(/@([A-Za-z0-9_\.\-]{1,20})$/)?.[1] || '';
+    setMentionQuery(q);
+    if (mentionTimer.current) clearTimeout(mentionTimer.current);
+    if (!q) { setMentionList([]); return; }
+    mentionTimer.current = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${serverUrl}/api/user/search`, { params: { query: q }, withCredentials: true });
+        setMentionList(Array.isArray(res.data) ? res.data.slice(0,6) : []);
+      } catch { setMentionList([]); }
+    }, 250);
+    return () => { if (mentionTimer.current) clearTimeout(mentionTimer.current); };
+  }, [commentContent, replyContent, serverUrl]);
+
+  const applyMention = (u) => {
+    const at = `@${u.userName}`;
+    if (replyFor) {
+      setReplyContent(prev => prev.replace(/@([A-Za-z0-9_\.\-]{1,20})$/, at + ' '));
+    } else {
+      setCommentContent(prev => prev.replace(/@([A-Za-z0-9_\.\-]{1,20})$/, at + ' '));
+    }
+    setMentionList([]);
   };
 
 
@@ -734,7 +817,7 @@ function Post(props) {
       {/* Comments section */}
       {showComment && (
         <div className='mt-2'>
-          <form className="flex items-center gap-2" onSubmit={handleComment}>
+          <form className="flex items-center gap-2 relative" onSubmit={handleComment}>
             <input
               type="text"
               placeholder="Leave a comment..."
@@ -748,12 +831,25 @@ function Post(props) {
             <button type="submit" disabled={!postId || isSubmittingComment} title={!postId ? "Missing postId" : (isSubmittingComment ? "Posting..." : "Send")}>
               <LuSendHorizontal className="text-[#07a4ff] w-5 h-5" />
             </button>
+            {mentionList.length > 0 && (
+              <div className="absolute bottom-12 left-0 w-full max-w-md bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#2C2F36] rounded-md shadow-lg z-10">
+                {mentionList.map(u => (
+                  <button key={u._id} type="button" className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-900 text-left" onClick={() => applyMention(u)}>
+                    <img src={u.profileImage || dp} alt="" className="w-7 h-7 rounded-full object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-800 dark:text-white truncate">{u.firstName} {u.lastName}</div>
+                      {u.userName && <div className="text-xs text-gray-500 truncate">@{u.userName}</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </form>
 
           {/* Comment list */}
           <div className='mt-3 flex flex-col gap-3'>
             {comments?.map((com) => (
-              <div key={com._id} className={`flex flex-col gap-1 border-b border-gray-200 pb-2 ${com.optimistic ? 'opacity-70' : ''}`}>
+              <div key={com._id} className={`flex flex-col gap-2 border-b border-gray-200 pb-2 ${com.optimistic ? 'opacity-70' : ''}`}>
                 <div className="flex items-center gap-2">
                   <div className='w-[35px] h-[35px] rounded-full overflow-hidden'>
                     <img src={com.user?.profileImage || dp} alt="" className='h-full w-full object-cover' />
@@ -777,6 +873,57 @@ function Post(props) {
                     onHashtagClick={(tag) => alert(`#${tag} coming soon`)}
                   />
                 </div>
+                {/* Comment actions */}
+                <div className="pl-[45px] flex items-center gap-3 text-xs text-gray-600">
+                  <button className="inline-flex items-center gap-1 hover:text-[#0A66C2]" onClick={() => likeComment(com._id)}>
+                    {(com.likes || []).some(u => (u?._id || u)?.toString?.() === userData?._id?.toString?.()) ? <AiFillLike className="w-4 h-4 text-[#0A66C2]"/> : <AiOutlineLike className="w-4 h-4"/>}
+                    <span>Like</span>
+                    {(com.likes || []).length > 0 && <span>· {(com.likes || []).length}</span>}
+                  </button>
+                  <button className="hover:text-[#0A66C2]" onClick={() => { setReplyFor(prev => prev === com._id ? null : com._id); setReplyContent(prev => prev || `@${com.user?.userName || ''} `); }}>Reply</button>
+                  <span>{com.createdAt ? moment(com.createdAt).fromNow() : ''}</span>
+                </div>
+                {/* Replies */}
+                {(com.replies || []).length > 0 && (
+                  <div className="pl-[45px] mt-1 flex flex-col gap-2">
+                    {com.replies.map(r => (
+                      <div key={r._id} className="flex items-start gap-2">
+                        <img src={r.user?.profileImage || dp} alt="" className="w-6 h-6 rounded-full object-cover mt-0.5" />
+                        <div className="flex-1">
+                          <div className="text-sm"><span className="font-semibold text-[#0A66C2]">{r.user?.firstName} {r.user?.lastName}</span> <span className="text-gray-700 dark:text-white"><AutolinkText text={r.content} onMentionClick={(h)=>h&&handleGetProfile(h)} onHashtagClick={(t)=>alert(`#${t} coming soon`)} /></span></div>
+                          <div className="flex items-center gap-3 text-xs text-gray-600 mt-0.5">
+                            <button className="inline-flex items-center gap-1 hover:text-[#0A66C2]" onClick={() => likeReply(com._id, r._id)}>
+                              {(r.likes || []).some(u => (u?._id || u)?.toString?.() === userData?._id?.toString?.()) ? <AiFillLike className="w-4 h-4 text-[#0A66C2]"/> : <AiOutlineLike className="w-4 h-4"/>}
+                              <span>Like</span>
+                              {(r.likes || []).length > 0 && <span>· {(r.likes || []).length}</span>}
+                            </button>
+                            <span>{r.createdAt ? moment(r.createdAt).fromNow() : ''}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Reply input */}
+                {replyFor === com._id && (
+                  <form onSubmit={submitReply} className="pl-[45px] flex items-center gap-2 mt-1 relative">
+                    <input className="input h-9 flex-1" placeholder={`Reply to ${com.user?.firstName || ''}`} value={replyContent} onChange={(e)=>setReplyContent(e.target.value)} onKeyDown={(e)=>e.stopPropagation()} />
+                    <button type="submit" title="Send reply"><LuSendHorizontal className="w-4 h-4 text-[#07a4ff]"/></button>
+                    {mentionList.length > 0 && (
+                      <div className="absolute bottom-12 left-0 w-full max-w-md bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#2C2F36] rounded-md shadow-lg z-10">
+                        {mentionList.map(u => (
+                          <button key={u._id} type="button" className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-900 text-left" onClick={() => applyMention(u)}>
+                            <img src={u.profileImage || dp} alt="" className="w-7 h-7 rounded-full object-cover" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-800 dark:text-white truncate">{u.firstName} {u.lastName}</div>
+                              {u.userName && <div className="text-xs text-gray-500 truncate">@{u.userName}</div>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </form>
+                )}
               </div>
             ))}
           </div>

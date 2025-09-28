@@ -20,7 +20,7 @@ export default function JobForm() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#2C2C2C] flex items-start justify-center pt-24 px-4 pb-12">
+    <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#2C2C2C] flex items-start justify-center pt-[88px] px-4 pb-12">
       <div className="card w-full max-w-lg">
         <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-yellow-100">Post a Job</h1>
         <form onSubmit={handleSubmit} className="space-y-3">

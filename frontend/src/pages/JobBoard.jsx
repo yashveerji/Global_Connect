@@ -235,14 +235,14 @@ function Jobs() {
   const pagedJobs = filteredJobs.slice(start, start + pageSize);
 
   return (
-  <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#2C2C2C] dark:from-[#121212] dark:to-[#121212]">
+  <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#2C2C2C] dark:from-[#121212] dark:to-[#121212] pt-[88px]">
       {/* Navbar */}
       <Nav />
 
 
       {/* Job Modal (Add/Edit) */}
-      {showJobModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+    {showJobModal && (
+  <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <form onSubmit={handleJobSubmit} className="card w-full max-w-md relative animate-scale-in">
             <button type="button" className="absolute top-3 right-3 text-2xl text-yellow-400" onClick={() => { setShowJobModal(false); setIsEditMode(false); setSelectedJob(null); }}>&times;</button>
             <h2 className="text-2xl font-bold mb-4 text-center text-yellow-400">{isEditMode ? "Edit Job" : "Add Job"}</h2>
@@ -256,8 +256,8 @@ function Jobs() {
       )}
 
       {/* Apply Modal */}
-      {showApplyModal && selectedJob && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+    {showApplyModal && selectedJob && (
+  <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
             <form onSubmit={applyJob} className="card w-full max-w-md relative animate-scale-in">
               <button type="button" className="absolute top-3 right-3 text-2xl text-yellow-400" onClick={() => setShowApplyModal(false)}>&times;</button>
               <h2 className="text-2xl font-bold mb-4 text-center text-yellow-400">Apply for {selectedJob.title}</h2>
@@ -277,7 +277,7 @@ function Jobs() {
       )}
 
       {/* Header & Actions */}
-      <div className="mt-[80px] px-4">
+  <div className="mt-2 px-4">
         <div className="card p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 min-w-0">
@@ -374,8 +374,8 @@ function Jobs() {
       </div>
 
   {/* Details Drawer */}
-    {detailsOpen && selectedJob && (
-        <div className="fixed inset-0 z-50">
+  {detailsOpen && selectedJob && (
+    <div className="fixed inset-0 z-[1100]">
           <div className="absolute inset-0 bg-black/40" onClick={()=> setDetailsOpen(false)} />
   <aside className="absolute right-0 top-0 h-full w-[min(92vw,520px)] bg-white dark:bg-[#1E1E1E] shadow-xl p-5 overflow-y-auto border-l border-gray-200 dark:border-[#2C2F36] animate-slide-in-right">
             <div className="flex items-start justify-between">

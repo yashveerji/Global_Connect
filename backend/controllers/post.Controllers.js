@@ -126,10 +126,105 @@ export const comment = async (req, res) => {
             });
         }
 
+        // Mention notifications: find @username patterns and notify mentioned users
+        try {
+            const handles = Array.from(new Set((content || '').match(/@([A-Za-z0-9_\.\-]+)/g)?.map(h => h.slice(1)) || []));
+            if (handles.length) {
+                const users = await User.find({ userName: { $in: handles } }).select('_id');
+                for (const u of users) {
+                    if (u._id.toString() !== userId) {
+                        await Notification.create({ receiver: u._id, type: 'mention', relatedUser: userId, relatedPost: postId });
+                    }
+                }
+            }
+        } catch {}
+
         io.emit("commentAdded", { postId, comm: post.comment });
         return res.status(200).json(post);
     } catch (error) {
         return res.status(500).json({ message: `comment error ${error}` });
+    }
+};
+
+export const likeComment = async (req, res) => {
+    try {
+        const { postId, commentId } = req.params;
+        const userId = req.userId;
+        const post = await Post.findById(postId).select('comment author');
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const c = post.comment.id?.(commentId) || post.comment.find?.(x => x._id?.toString?.() === commentId);
+        if (!c) return res.status(404).json({ message: 'Comment not found' });
+        const has = (c.likes || []).some(u => u.toString() === userId);
+        if (has) c.likes = c.likes.filter(u => u.toString() !== userId);
+        else c.likes = [...(c.likes || []), userId];
+        await post.save();
+        io.emit('commentLikeUpdated', { postId, commentId, likes: c.likes });
+        // Optional notify comment owner (not self)
+        if (c.user?.toString?.() !== userId) {
+            await Notification.create({ receiver: c.user, type: 'commentLike', relatedUser: userId, relatedPost: postId });
+        }
+        return res.status(200).json({ commentId, likes: c.likes });
+    } catch (e) {
+        return res.status(500).json({ message: 'like comment error' });
+    }
+};
+
+export const replyToComment = async (req, res) => {
+    try {
+        const { postId, commentId } = req.params;
+        const userId = req.userId;
+        const { content } = req.body;
+        const post = await Post.findById(postId).select('comment author');
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const c = post.comment.id?.(commentId) || post.comment.find?.(x => x._id?.toString?.() === commentId);
+        if (!c) return res.status(404).json({ message: 'Comment not found' });
+        c.replies = c.replies || [];
+        c.replies.push({ content, user: userId, createdAt: new Date(), likes: [] });
+        await post.save();
+        io.emit('commentReplied', { postId, commentId, replies: c.replies });
+        // Notify comment owner
+        if (c.user?.toString?.() !== userId) {
+            await Notification.create({ receiver: c.user, type: 'reply', relatedUser: userId, relatedPost: postId });
+        }
+        // Mention notifications inside reply
+        try {
+            const handles = Array.from(new Set((content || '').match(/@([A-Za-z0-9_\.\-]+)/g)?.map(h => h.slice(1)) || []));
+            if (handles.length) {
+                const users = await User.find({ userName: { $in: handles } }).select('_id');
+                for (const u of users) {
+                    if (u._id.toString() !== userId) {
+                        await Notification.create({ receiver: u._id, type: 'mention', relatedUser: userId, relatedPost: postId });
+                    }
+                }
+            }
+        } catch {}
+        return res.status(200).json({ commentId, replies: c.replies });
+    } catch (e) {
+        return res.status(500).json({ message: 'reply error' });
+    }
+};
+
+export const likeReply = async (req, res) => {
+    try {
+        const { postId, commentId, replyId } = req.params;
+        const userId = req.userId;
+        const post = await Post.findById(postId).select('comment author');
+        if (!post) return res.status(404).json({ message: 'Post not found' });
+        const c = post.comment.id?.(commentId) || post.comment.find?.(x => x._id?.toString?.() === commentId);
+        if (!c) return res.status(404).json({ message: 'Comment not found' });
+        const r = (c.replies || []).find(x => x._id?.toString?.() === replyId);
+        if (!r) return res.status(404).json({ message: 'Reply not found' });
+        const has = (r.likes || []).some(u => u.toString() === userId);
+        if (has) r.likes = r.likes.filter(u => u.toString() !== userId);
+        else r.likes = [...(r.likes || []), userId];
+        await post.save();
+        io.emit('replyLikeUpdated', { postId, commentId, replyId, likes: r.likes });
+        if (r.user?.toString?.() !== userId) {
+            await Notification.create({ receiver: r.user, type: 'replyLike', relatedUser: userId, relatedPost: postId });
+        }
+        return res.status(200).json({ replyId, likes: r.likes });
+    } catch (e) {
+        return res.status(500).json({ message: 'like reply error' });
     }
 };
 
