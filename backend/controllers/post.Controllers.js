@@ -20,6 +20,7 @@ export const createPost = async (req, res) => {
             .populate("author", "firstName lastName profileImage headline userName")
             .populate("repostedFrom", "firstName lastName profileImage headline userName")
             .populate("comment.user", "firstName lastName profileImage headline")
+            .populate("comment.replies.user", "firstName lastName profileImage headline userName")
             .populate("reactions.user", "firstName lastName profileImage userName");
 
         io.emit("postCreated", populated);
@@ -39,6 +40,7 @@ export const getPost = async (req, res) => {
                 .populate("author", "firstName lastName profileImage headline userName")
                 .populate("repostedFrom", "firstName lastName profileImage headline userName")
                 .populate("comment.user", "firstName lastName profileImage headline")
+                .populate("comment.replies.user", "firstName lastName profileImage headline userName")
                 .populate("reactions.user", "firstName lastName profileImage userName")
                 .sort({ createdAt: -1 });
             return res.status(200).json(posts);
@@ -56,6 +58,7 @@ export const getPost = async (req, res) => {
                 .populate("author", "firstName lastName profileImage headline userName")
                 .populate("repostedFrom", "firstName lastName profileImage headline userName")
                 .populate("comment.user", "firstName lastName profileImage headline")
+                .populate("comment.replies.user", "firstName lastName profileImage headline userName")
                 .populate("reactions.user", "firstName lastName profileImage userName"),
             Post.countDocuments()
         ]);
@@ -181,7 +184,19 @@ export const replyToComment = async (req, res) => {
         c.replies = c.replies || [];
         c.replies.push({ content, user: userId, createdAt: new Date(), likes: [] });
         await post.save();
-        io.emit('commentReplied', { postId, commentId, replies: c.replies });
+
+        // Re-fetch the specific comment with populated reply users for richer client rendering
+        let populatedReplies = c.replies;
+        try {
+            const refreshed = await Post.findById(postId)
+                .select('comment')
+                .populate({ path: 'comment.user', select: 'firstName lastName profileImage headline userName' })
+                .populate({ path: 'comment.replies.user', select: 'firstName lastName profileImage headline userName' });
+            const c2 = refreshed?.comment?.id?.(commentId) || refreshed?.comment?.find?.(x => x._id?.toString?.() === commentId);
+            if (c2) populatedReplies = c2.replies || [];
+        } catch {}
+
+        io.emit('commentReplied', { postId, commentId, replies: populatedReplies });
         // Notify comment owner
         if (c.user?.toString?.() !== userId) {
             await Notification.create({ receiver: c.user, type: 'reply', relatedUser: userId, relatedPost: postId });
@@ -198,7 +213,7 @@ export const replyToComment = async (req, res) => {
                 }
             }
         } catch {}
-        return res.status(200).json({ commentId, replies: c.replies });
+        return res.status(200).json({ commentId, replies: populatedReplies });
     } catch (e) {
         return res.status(500).json({ message: 'reply error' });
     }
@@ -282,6 +297,7 @@ export const repost = async (req, res) => {
             .populate("author", "firstName lastName profileImage headline userName")
             .populate("repostedFrom", "firstName lastName profileImage headline userName")
             .populate("comment.user", "firstName lastName profileImage headline")
+            .populate("comment.replies.user", "firstName lastName profileImage headline userName")
             .populate("reactions.user", "firstName lastName profileImage userName");
         io.emit("postCreated", populated);
         return res.status(201).json({ message: "Reposted successfully", post: populated });
@@ -309,6 +325,7 @@ export const quoteRepost = async (req, res) => {
             .populate("author", "firstName lastName profileImage headline userName")
             .populate("repostedFrom", "firstName lastName profileImage headline userName")
             .populate("comment.user", "firstName lastName profileImage headline")
+            .populate("comment.replies.user", "firstName lastName profileImage headline userName")
             .populate("reactions.user", "firstName lastName profileImage userName");
         io.emit("postCreated", populated);
         return res.status(201).json({ message: "Reposted with quote", post: populated });
@@ -346,6 +363,7 @@ export const getSavedPosts = async (req, res) => {
                 { path: "author", select: "firstName lastName profileImage headline userName" },
                 { path: "repostedFrom", select: "firstName lastName profileImage headline userName" },
                 { path: "comment.user", select: "firstName lastName profileImage headline" },
+                { path: "comment.replies.user", select: "firstName lastName profileImage headline userName" },
                 { path: "reactions.user", select: "firstName lastName profileImage userName" }
             ]
         });
@@ -394,6 +412,7 @@ export const searchPosts = async (req, res) => {
                 .populate("author", "firstName lastName profileImage headline userName")
                 .populate("repostedFrom", "firstName lastName profileImage headline userName")
                 .populate("comment.user", "firstName lastName profileImage headline")
+                .populate("comment.replies.user", "firstName lastName profileImage headline userName")
                 .populate("reactions.user", "firstName lastName profileImage userName"),
             Post.countDocuments(filter)
         ]);

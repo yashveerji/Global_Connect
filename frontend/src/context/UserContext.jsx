@@ -106,6 +106,38 @@ useEffect(() => {
     if (!postId) return;
     setPostData(prev => prev.map(p => ((p._id || p.id) === postId ? { ...p, comment: comm || [] } : p)));
   };
+  const onCommentLikeUpdated = ({ postId, commentId, likes }) => {
+    if (!postId || !commentId) return;
+    setPostData(prev => prev.map(p => {
+      if ((p._id || p.id) !== postId) return p;
+      const list = Array.isArray(p.comment) ? p.comment.map(c => (
+        (c._id || c.id) === commentId ? { ...c, likes: likes || [] } : c
+      )) : [];
+      return { ...p, comment: list };
+    }));
+  };
+  const onCommentReplied = ({ postId, commentId, replies }) => {
+    if (!postId || !commentId) return;
+    setPostData(prev => prev.map(p => {
+      if ((p._id || p.id) !== postId) return p;
+      const list = Array.isArray(p.comment) ? p.comment.map(c => (
+        (c._id || c.id) === commentId ? { ...c, replies: replies || [] } : c
+      )) : [];
+      return { ...p, comment: list };
+    }));
+  };
+  const onReplyLikeUpdated = ({ postId, commentId, replyId, likes }) => {
+    if (!postId || !commentId || !replyId) return;
+    setPostData(prev => prev.map(p => {
+      if ((p._id || p.id) !== postId) return p;
+      const list = Array.isArray(p.comment) ? p.comment.map(c => {
+        if ((c._id || c.id) !== commentId) return c;
+        const reps = (c.replies || []).map(r => ((r._id || r.id) === replyId ? { ...r, likes: likes || [] } : r));
+        return { ...c, replies: reps };
+      }) : [];
+      return { ...p, comment: list };
+    }));
+  };
   const onCommentDeleted = ({ postId, commentId }) => {
     if (!postId || !commentId) return;
     setPostData(prev => prev.map(p => {
@@ -121,6 +153,9 @@ useEffect(() => {
   sock.on('likeUpdated', onLikeUpdated);
   sock.on('commentAdded', onCommentAdded);
   sock.on('commentDeleted', onCommentDeleted);
+  sock.on('commentLikeUpdated', onCommentLikeUpdated);
+  sock.on('commentReplied', onCommentReplied);
+  sock.on('replyLikeUpdated', onReplyLikeUpdated);
 
   return () => {
   sock.off('connect', onConnect);
@@ -129,6 +164,9 @@ useEffect(() => {
   sock.off('likeUpdated', onLikeUpdated);
   sock.off('commentAdded', onCommentAdded);
   sock.off('commentDeleted', onCommentDeleted);
+  sock.off('commentLikeUpdated', onCommentLikeUpdated);
+  sock.off('commentReplied', onCommentReplied);
+  sock.off('replyLikeUpdated', onReplyLikeUpdated);
   try { sock.disconnect(); } catch {}
     socketRef.current = null;
   setSocket(null);
