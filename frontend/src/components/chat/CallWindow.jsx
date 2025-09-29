@@ -21,6 +21,15 @@ const CallWindow = ({
   onCamToggle,
   onReconnect,
   onShareToggle,
+  // Devices
+  devices,
+  selectedMicId,
+  selectedCamId,
+  selectedSpeakerId,
+  onSelectMic,
+  onSelectCam,
+  onSelectSpeaker,
+  onFlipCamera,
   muted = false,
   cameraOff = false,
   sharing = false,
@@ -254,6 +263,41 @@ const CallWindow = ({
           <div className="font-mono">{startedAt ? duration : ''}</div>
         </div>
       </div>
+      {/* Device selectors */}
+      <div className="flex items-center gap-1 mb-1">
+        <select
+          className="flex-1 text-[10px] px-1.5 py-1 rounded border border-gray-200 dark:border-[#2C2F36] bg-white dark:bg-[#1E1E1E]"
+          title="Microphone"
+          value={selectedMicId || ''}
+          onChange={(e) => onSelectMic?.(e.target.value)}
+        >
+          {(devices?.mics || []).map((d) => (
+            <option key={d.deviceId || 'default'} value={d.deviceId || 'default'}>{d.label || 'Microphone'}</option>
+          ))}
+        </select>
+        {callType === 'video' && (
+          <select
+            className="flex-1 text-[10px] px-1.5 py-1 rounded border border-gray-200 dark:border-[#2C2F36] bg-white dark:bg-[#1E1E1E]"
+            title="Camera"
+            value={selectedCamId || ''}
+            onChange={(e) => onSelectCam?.(e.target.value)}
+          >
+            {(devices?.cams || []).map((d) => (
+              <option key={d.deviceId || 'default'} value={d.deviceId || 'default'}>{d.label || 'Camera'}</option>
+            ))}
+          </select>
+        )}
+        <select
+          className="flex-1 text-[10px] px-1.5 py-1 rounded border border-gray-200 dark:border-[#2C2F36] bg-white dark:bg-[#1E1E1E]"
+          title="Speaker"
+          value={selectedSpeakerId || ''}
+          onChange={(e) => onSelectSpeaker?.(e.target.value)}
+        >
+          {(devices?.speakers || []).map((d) => (
+            <option key={d.deviceId || 'default'} value={d.deviceId || 'default'}>{d.label || 'Speaker'}</option>
+          ))}
+        </select>
+      </div>
     {callType === 'video' && !minimized ? (
         <div className="relative w-full aspect-video bg-black rounded overflow-hidden" onDoubleClick={toggleFullscreen}>
           {/* Swap layout toggles which video is large vs. PiP */}
@@ -312,6 +356,11 @@ const CallWindow = ({
             <button onClick={onCamToggle} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-[#1E1E1E] dark:hover:bg-[#161616] border border-transparent dark:border-[#2C2F36]" title={cameraOff ? 'Camera on' : 'Camera off'}>
               {cameraOff ? <FiCameraOff /> : <FiCamera />}
             </button>
+            {onFlipCamera && (
+              <button onClick={onFlipCamera} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-[#1E1E1E] dark:hover:bg-[#161616] border border-transparent dark:border-[#2C2F36]" title="Flip camera">
+                <FiRefreshCw />
+              </button>
+            )}
             <button onClick={onShareToggle} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-[#1E1E1E] dark:hover:bg-[#161616] border border-transparent dark:border-[#2C2F36]" title={sharing ? 'Stop sharing' : 'Share screen'}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 5h16v10H4z" stroke="currentColor" strokeWidth="1.5"/><path d="M8 19h8" stroke="currentColor" strokeWidth="1.5"/><path d="M12 15v4" stroke="currentColor" strokeWidth="1.5"/></svg>
             </button>

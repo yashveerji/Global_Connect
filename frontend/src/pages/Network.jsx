@@ -2,51 +2,67 @@ import React, { useContext, useEffect, useMemo, useState, useRef } from "react";
 import Nav from "../components/Nav";
 import axios from "axios";
 import { authDataContext } from "../context/AuthContext";
+import { userDataContext } from "../context/UserContext";
 import dp from "../assets/dp.webp";
 import { IoIosCheckmarkCircleOutline } from "react-icons/io";
 import { RxCrossCircled } from "react-icons/rx";
 import { FiUserX } from "react-icons/fi";
-import io from "socket.io-client";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useToastInternal } from "../components/ui/ToastProvider";
+import { bust } from "../utils/image";
 
 import { useNavigate } from "react-router-dom";
 
 function Network() {
   const { serverUrl } = useContext(authDataContext);
+  const { socket } = useContext(userDataContext);
   const confirm = useConfirm();
   const toast = useToastInternal();
 
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'connections' | 'suggestions'
   const [requests, setRequests] = useState([]);
   const [connections, setConnections] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
   const [loadingReq, setLoadingReq] = useState(true);
   const [loadingConn, setLoadingConn] = useState(true);
+  const [loadingSug, setLoadingSug] = useState(true);
   const [qReqRaw, setQReqRaw] = useState("");
   const [qConnRaw, setQConnRaw] = useState("");
+  const [qSugRaw, setQSugRaw] = useState("");
   const [qReq, setQReq] = useState("");
   const [qConn, setQConn] = useState("");
+  const [qSug, setQSug] = useState("");
   const [busyBulk, setBusyBulk] = useState(false);
   const reqDebRef = useRef();
   const connDebRef = useRef();
+  const sugDebRef = useRef();
   // removed local toast state (using ToastProvider)
 
-  // Socket setup
+  // Socket listeners using global socket
   useEffect(() => {
-    const socket = io(serverUrl, { withCredentials: true });
-
-    // Some backends emit granular events; our controllers emit `statusUpdate`.
-    socket.on("newRequest", (newReq) => setRequests((prev) => [...prev, newReq]));
-    socket.on("requestAccepted", () => { fetchConnections(); fetchRequests(); });
-    socket.on("connectionRemoved", (id) => setConnections((prev) => prev.filter((c) => c._id !== id)));
-    socket.on("statusUpdate", ({ newStatus }) => {
-      if (newStatus === "connect") fetchConnections();
+    if (!socket) return;
+    const onNewReq = (newReq) => setRequests((prev) => [...prev, newReq]);
+    const onAcc = () => { fetchConnections(); fetchRequests(); };
+    const onRemoved = (id) => setConnections((prev) => prev.filter((c) => c._id !== id));
+    const onStatus = ({ newStatus }) => {
+      if (newStatus === "connect" || newStatus === "disconnect") fetchConnections();
       if (newStatus === "pending" || newStatus === "received") fetchRequests();
-    });
-
-    return () => socket.disconnect();
-  }, [serverUrl]);
+    };
+    socket.on("newRequest", onNewReq);
+    socket.on("requestAccepted", onAcc);
+    socket.on("connectionRemoved", onRemoved);
+    socket.on("statusUpdate", onStatus);
+    return () => {
+      try {
+        socket.off("newRequest", onNewReq);
+        socket.off("requestAccepted", onAcc);
+        socket.off("connectionRemoved", onRemoved);
+        socket.off("statusUpdate", onStatus);
+      } catch {}
+    };
+  }, [socket]);
 
   // Fetch pending requests
   const fetchRequests = async () => {
@@ -79,6 +95,20 @@ function Network() {
   toast?.error("Failed to load connections.");
     } finally {
       setLoadingConn(false);
+    }
+  };
+
+  // Fetch suggestions
+  const fetchSuggestions = async () => {
+    try {
+      setLoadingSug(true);
+      const res = await axios.get(`${serverUrl}/api/user/suggestedusers`, { withCredentials: true });
+      setSuggestions(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      toast?.error("Failed to load suggestions.");
+    } finally {
+      setLoadingSug(false);
     }
   };
 
@@ -175,6 +205,7 @@ function Network() {
   useEffect(() => {
     fetchRequests();
     fetchConnections();
+    fetchSuggestions();
   }, []);
 
   // Debounce search inputs for smoother filtering
@@ -188,6 +219,29 @@ function Network() {
     connDebRef.current = setTimeout(() => setQConn(qConnRaw.trim()), 180);
     return () => { if (connDebRef.current) clearTimeout(connDebRef.current); };
   }, [qConnRaw]);
+  useEffect(() => {
+    if (sugDebRef.current) clearTimeout(sugDebRef.current);
+    sugDebRef.current = setTimeout(() => setQSug(qSugRaw.trim()), 180);
+    return () => { if (sugDebRef.current) clearTimeout(sugDebRef.current); };
+  }, [qSugRaw]);
+
+  const filteredSuggestions = useMemo(() => {
+    if (!qSug.trim()) return suggestions;
+    const q = qSug.toLowerCase();
+    return suggestions.filter((u) => {
+      const name = [u.firstName, u.lastName].filter(Boolean).join(" ").toLowerCase();
+      return name.includes(q) || (u.userName || '').toLowerCase().includes(q);
+    });
+  }, [qSug, suggestions]);
+
+  const handleConnect = async (userId) => {
+    try {
+      await axios.post(`${serverUrl}/api/connection/send/${userId}`, {}, { withCredentials: true });
+      toast?.success("Invitation sent.");
+    } catch (e) {
+      toast?.error("Failed to send invitation.");
+    }
+  };
 
   return (
   <div className="w-full min-h-screen bg-gradient-to-br from-[#1A1F71] to-[#23243a] dark:from-[#121212] dark:to-[#121212] flex flex-col items-center text-white dark:text-white animate-fade-in">
@@ -209,7 +263,27 @@ function Network() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="card dark:bg-[#1E1E1E] dark:border-[#2C2F36]">
+          <div className="flex gap-2">
+            {[
+              { key: 'requests', label: `Invitations (${requests.length})` },
+              { key: 'connections', label: `Connections (${connections.length})` },
+              { key: 'suggestions', label: 'Suggestions' },
+            ].map(t => (
+              <button
+                key={t.key}
+                className={`px-3 py-1.5 rounded-full text-sm border ${activeTab===t.key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-transparent dark:text-white border-gray-200 dark:border-[#2C2F36]'}`}
+                onClick={() => setActiveTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Invitations */}
+        {activeTab === 'requests' && (
   <div className="card dark:bg-[#1E1E1E] dark:border-[#2C2F36] animate-scale-in">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <span className="text-lg font-semibold text-gray-900 dark:text-[var(--gc-heading)]">Invitations</span>
@@ -225,8 +299,9 @@ function Network() {
             </div>
           </div>
         </div>
+        )}
 
-        {loadingReq ? (
+        {activeTab === 'requests' && (loadingReq ? (
           <div className="card dark:bg-[#1E1E1E] dark:border-[#2C2F36]">
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
@@ -244,7 +319,7 @@ function Network() {
                 <div className="flex items-center gap-4 min-w-0 flex-1">
                   <div className="w-14 h-14 rounded-full overflow-hidden border border-gray-300 dark:border-[#2C2F36] shrink-0">
                     <img
-                      src={req.sender?.profileImage || dp}
+                      src={(req.sender?.profileImage ? bust(req.sender.profileImage) : null) || dp}
                       alt=""
                       className="w-full h-full object-cover"
                     />
@@ -281,9 +356,10 @@ function Network() {
               <button className="btn-primary" onClick={() => navigate('/')}>Discover people</button>
             </div>
           </div>
-        )}
+        ))}
 
         {/* Connections */}
+        {activeTab === 'connections' && (
   <div className="card dark:bg-[#1E1E1E] dark:border-[#2C2F36] mt-2 animate-scale-in">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <span className="text-lg font-semibold text-gray-900 dark:text-[var(--gc-heading)]">My Connections</span>
@@ -298,8 +374,9 @@ function Network() {
             </div>
           </div>
         </div>
+        )}
 
-        {loadingConn ? (
+        {activeTab === 'connections' && (loadingConn ? (
           <div className="card dark:bg-[#1E1E1E] dark:border-[#2C2F36] animate-scale-in">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => (
@@ -317,7 +394,7 @@ function Network() {
                 <div key={conn._id} className="group flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[#2C2F36] hover:border-blue-300 dark:hover:border-[#3A3F46] hover:bg-blue-50 dark:hover:bg-[#161616] transition hover-lift">
                   <button className="flex items-center gap-3 flex-1 text-left" onClick={() => navigate(`/profile/${conn.userName}`)} title="View Profile">
                     <span className="relative">
-                      <img src={conn.profileImage || dp} alt="" className="w-12 h-12 rounded-full border border-gray-200 dark:border-[#2C2F36]" />
+                      <img src={(conn.profileImage ? bust(conn.profileImage) : null) || dp} alt="" className="w-12 h-12 rounded-full border border-gray-200 dark:border-[#2C2F36]" />
                     </span>
                     <span className="flex flex-col">
                       <span className="text-sm font-medium group-hover:text-blue-800 dark:text-white dark:group-hover:text-blue-300">
@@ -349,6 +426,51 @@ function Network() {
             <div className="mt-4">
               <button className="btn-primary" onClick={() => navigate('/')}>Find people</button>
             </div>
+          </div>
+        ))}
+
+        {/* Suggestions */}
+        {activeTab === 'suggestions' && (
+          <div className="card dark:bg-[#1E1E1E] dark:border-[#2C2F36] animate-scale-in">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <span className="text-lg font-semibold text-gray-900 dark:text-[var(--gc-heading)]">People you may know</span>
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <input
+                  value={qSugRaw}
+                  onChange={(e) => setQSugRaw(e.target.value)}
+                  placeholder="Search suggestions"
+                  className="input h-9 py-1.5 min-w-[160px] flex-1 w-full"
+                />
+                <button className="btn-secondary h-9 text-sm" onClick={fetchSuggestions}>Refresh</button>
+              </div>
+            </div>
+            {loadingSug ? (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[#2C2F36] animate-pulse">
+                    <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#2C2F36]" />
+                    <div className="h-4 rounded w-32 bg-gray-100 dark:bg-[#2C2F36]" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredSuggestions.length > 0 ? (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {filteredSuggestions.map((u) => (
+                  <div key={u._id} className="group flex items-center gap-3 p-3 rounded border border-gray-200 dark:border-[#2C2F36] hover:border-blue-300 dark:hover:border-[#3A3F46] hover:bg-blue-50 dark:hover:bg-[#161616] transition">
+                    <button className="flex items-center gap-3 flex-1 text-left" onClick={() => navigate(`/profile/${u.userName}`)}>
+                      <img src={(u.profileImage ? bust(u.profileImage) : null) || dp} alt="" className="w-12 h-12 rounded-full border border-gray-200 dark:border-[#2C2F36]" />
+                      <span className="flex flex-col">
+                        <span className="text-sm font-medium group-hover:text-blue-800 dark:text-white dark:group-hover:text-blue-300">{[u.firstName, u.lastName].filter(Boolean).join(' ')}</span>
+                        {u.headline && <span className="text-xs text-white/70 line-clamp-1">{u.headline}</span>}
+                      </span>
+                    </button>
+                    <button className="btn-primary h-9 text-sm" onClick={() => handleConnect(u._id)}>Connect</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm text-white/80">No suggestions right now. Try refreshing.</div>
+            )}
           </div>
         )}
 

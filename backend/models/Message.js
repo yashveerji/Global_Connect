@@ -16,7 +16,21 @@ const messageSchema = new mongoose.Schema(
     attachmentWidth: { type: Number, default: 0 },
     attachmentHeight: { type: Number, default: 0 },
     deliveredAt: { type: Date, default: null },
-    readAt:      { type: Date, default: null }
+    readAt:      { type: Date, default: null },
+    // Message lifecycle
+    editedAt:    { type: Date, default: null },
+    deleted:     { type: Boolean, default: false },
+    // Reactions: array of { user, emoji, createdAt }
+    reactions: [
+      new mongoose.Schema(
+        {
+          user:  { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+          emoji: { type: String, required: true },
+          createdAt: { type: Date, default: Date.now }
+        },
+        { _id: false }
+      )
+    ]
   },
   { timestamps: true }
 );

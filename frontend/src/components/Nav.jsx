@@ -46,7 +46,7 @@ function Nav() {
         </motion.span>
     );
     const [activeSearch, setActiveSearch] = useState(false)
-    const { userData, setUserData, handleGetProfile, unreadCount } = useContext(userDataContext)
+    const { userData, setUserData, handleGetProfile, unreadCount, chatUnreadCount } = useContext(userDataContext)
     const [showPopup, setShowPopup] = useState(false)
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
     const navigate = useNavigate()
@@ -319,7 +319,14 @@ function Nav() {
                         aria-label="Chat"
                     >
                         <GlowIcon active={isActive("/chat")}>
-                            <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                                                        <span className="relative">
+                                                            <IoChatbubbleEllipsesSharp className='w-[23px] h-[23px] mb-1 transition-transform duration-200' />
+                                                            {chatUnreadCount > 0 && (
+                                                                <span className="absolute -top-1 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center shadow">
+                                                                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                                                                </span>
+                                                            )}
+                                                        </span>
                         </GlowIcon>
                         <span className='hidden md:block'>Chat</span>
                     </button>

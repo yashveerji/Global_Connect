@@ -35,7 +35,7 @@ export const getHistory = async (req, res) => {
     const withUser = req.params.withUser;
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || "30", 10), 1), 100);
-    const skip = (page - 1) * limit;
+    const before = req.query.before ? new Date(req.query.before) : null; // optional cursor
 
     const filter = {
       $or: [
@@ -45,8 +45,12 @@ export const getHistory = async (req, res) => {
     };
 
     // Fetch messages and recent call logs within the same conversation
+    if (before) {
+      filter.createdAt = { $lt: before };
+    }
+
     const [msgs, calls, totalMsgs, totalCalls] = await Promise.all([
-      Message.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Message.find(filter).sort({ createdAt: -1 }).limit(limit),
       CallLog.find({ $or: [ { from: userId, to: withUser }, { from: withUser, to: userId } ] }).sort({ createdAt: -1 }).limit(200),
       Message.countDocuments(filter),
       CallLog.countDocuments({ $or: [ { from: userId, to: withUser }, { from: withUser, to: userId } ] })
@@ -68,6 +72,9 @@ export const getHistory = async (req, res) => {
       attachmentHeight: m.attachmentHeight,
       deliveredAt: m.deliveredAt,
       readAt: m.readAt,
+      editedAt: m.editedAt,
+      deleted: m.deleted,
+      reactions: m.reactions || [],
       createdAt: m.createdAt,
       updatedAt: m.updatedAt
     }));
@@ -89,7 +96,9 @@ export const getHistory = async (req, res) => {
     // For pagination, keep total as messages+calls (approximate). Clients can fetch more if needed.
     const total = totalMsgs + totalCalls;
 
-    res.json({ page, limit, total, items: merged });
+    const nextCursor = (merged.length > 0) ? merged[0].createdAt : null; // newest in this page (since sorted asc after merge)
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ page, limit, total, items: merged, nextCursor });
   } catch (err) {
     console.error("getHistory error:", err);
     res.status(500).json({ message: "Failed to fetch chat history" });
@@ -140,6 +149,7 @@ export const getInbox = async (req, res) => {
     ];
 
     const rows = await Message.aggregate(pipeline);
+    res.setHeader('Cache-Control', 'no-store');
     res.json(rows);
   } catch (err) {
     console.error("getInbox error:", err);
@@ -161,9 +171,101 @@ export const markRead = async (req, res) => {
       { $set: { readAt: new Date() } }
     );
 
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ updated: result.modifiedCount });
   } catch (err) {
     console.error("markRead error:", err);
     res.status(500).json({ message: "Failed to mark as read" });
+  }
+};
+
+/**
+ * PATCH /api/chat/message/:id
+ * Body: { text }
+ * Only sender can edit; sets editedAt and updates text
+ */
+export const editMessage = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.userId;
+    const id = req.params.id;
+    const { text } = req.body || {};
+    if (!text || !text.trim()) return res.status(400).json({ message: 'Text required' });
+    const msg = await Message.findById(id);
+    if (!msg) return res.status(404).json({ message: 'Message not found' });
+    if (String(msg.from) !== String(userId)) return res.status(403).json({ message: 'Not allowed' });
+    // Enforce 10-minute edit window
+    const EDIT_WINDOW_MS = 10 * 60 * 1000;
+    const createdAt = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
+    if (!createdAt || (Date.now() - createdAt) > EDIT_WINDOW_MS) {
+      return res.status(403).json({ message: 'Edit window expired' });
+    }
+    msg.text = text.trim();
+    msg.editedAt = new Date();
+    await msg.save();
+    res.json({ ok: true, message: msg });
+  } catch (err) {
+    console.error('editMessage error:', err);
+    res.status(500).json({ message: 'Failed to edit message' });
+  }
+};
+
+/**
+ * DELETE /api/chat/message/:id
+ * Soft delete: mark as deleted and clear text/attachments
+ */
+export const deleteMessage = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.userId;
+    const id = req.params.id;
+    const msg = await Message.findById(id);
+    if (!msg) return res.status(404).json({ message: 'Message not found' });
+    if (String(msg.from) !== String(userId)) return res.status(403).json({ message: 'Not allowed' });
+    // Enforce 10-minute delete window
+    const DELETE_WINDOW_MS = 10 * 60 * 1000;
+    const createdAt = msg.createdAt ? new Date(msg.createdAt).getTime() : 0;
+    if (!createdAt || (Date.now() - createdAt) > DELETE_WINDOW_MS) {
+      return res.status(403).json({ message: 'Delete window expired' });
+    }
+    msg.deleted = true;
+    msg.text = '';
+    msg.attachmentUrl = '';
+    msg.attachmentType = '';
+    msg.attachmentName = '';
+    msg.attachmentMime = '';
+    msg.attachmentSize = 0;
+    msg.attachmentWidth = 0;
+    msg.attachmentHeight = 0;
+    await msg.save();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('deleteMessage error:', err);
+    res.status(500).json({ message: 'Failed to delete message' });
+  }
+};
+
+/**
+ * POST /api/chat/message/:id/react
+ * Body: { emoji }
+ * Toggle reaction for this user and emoji
+ */
+export const reactMessage = async (req, res) => {
+  try {
+    const userId = req.user?._id || req.userId;
+    const id = req.params.id;
+    const { emoji } = req.body || {};
+    if (!emoji) return res.status(400).json({ message: 'Emoji required' });
+    const msg = await Message.findById(id);
+    if (!msg) return res.status(404).json({ message: 'Message not found' });
+    const exists = (msg.reactions || []).find(r => String(r.user) === String(userId) && r.emoji === emoji);
+    if (exists) {
+      msg.reactions = (msg.reactions || []).filter(r => !(String(r.user) === String(userId) && r.emoji === emoji));
+    } else {
+      msg.reactions = [...(msg.reactions || []), { user: userId, emoji, createdAt: new Date() }];
+    }
+    await msg.save();
+    res.json({ ok: true, reactions: msg.reactions });
+  } catch (err) {
+    console.error('reactMessage error:', err);
+    res.status(500).json({ message: 'Failed to react to message' });
   }
 };

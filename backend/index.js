@@ -228,6 +228,28 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Message edited notification
+  socket.on("message_edited", ({ messageId, to, text }) => {
+    try {
+      const sockets = getUserSockets(to);
+      sockets.forEach((sid) => io.to(sid).emit("message_edited", { messageId, text }));
+    } catch {}
+  });
+  // Message deleted notification
+  socket.on("message_deleted", ({ messageId, to }) => {
+    try {
+      const sockets = getUserSockets(to);
+      sockets.forEach((sid) => io.to(sid).emit("message_deleted", { messageId }));
+    } catch {}
+  });
+  // Reaction update notification
+  socket.on("message_reaction", ({ messageId, to, reactions }) => {
+    try {
+      const sockets = getUserSockets(to);
+      sockets.forEach((sid) => io.to(sid).emit("message_reaction", { messageId, reactions }));
+    } catch {}
+  });
+
   // Typing indicator
   socket.on("typing", ({ from, to, isTyping }) => {
   const sockets = getUserSockets(to);

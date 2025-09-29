@@ -12,9 +12,11 @@ import CallWindow from "./CallWindow";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToastInternal } from "../ui/ToastProvider";
 import { bust } from "../../utils/image";
+import { editMessageHttp, deleteMessageHttp, reactMessageHttp } from "../../api/chat";
+import { REACTIONS } from "../Reactions";
 
 function ChatBox() {
-  const { userData, socket } = useContext(userDataContext);
+  const { userData, socket, chatUnreadCount, setChatUnreadCount } = useContext(userDataContext);
   const { serverUrl } = useContext(authDataContext);
   const confirm = useConfirm?.() || null;
   const toast = useToastInternal?.() || null;
@@ -24,10 +26,16 @@ function ChatBox() {
   const [message, setMessage] = useState("");
   const fileInputRef = useRef(null);
   const [chat, setChat] = useState([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [historyCursor, setHistoryCursor] = useState(null); // ISO date
+  // message edit state
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState("");
   const listRef = useRef(null);
   const bottomRef = useRef(null);
   const [isTyping, setIsTyping] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
+  const peerTypingTimerRef = useRef(null);
   const connections = useConnections();
 
   // WebRTC state
@@ -49,7 +57,13 @@ function ChatBox() {
   const [ringing, setRinging] = useState(false);
   const [iceState, setIceState] = useState('new');
   const [pcState, setPcState] = useState('new');
+  // Devices and selection
+  const [devices, setDevices] = useState({ mics: [], cams: [], speakers: [] });
+  const [selectedMicId, setSelectedMicId] = useState('');
+  const [selectedCamId, setSelectedCamId] = useState('');
+  const [selectedSpeakerId, setSelectedSpeakerId] = useState('');
   const [inbox, setInbox] = useState([]);
+  const [inboxLoading, setInboxLoading] = useState(false);
   const [presence, setPresence] = useState({});
   const [lastSeenMap, setLastSeenMap] = useState({}); // userId -> ISO string
   const pendingRemoteCandidatesRef = useRef([]);
@@ -59,6 +73,20 @@ function ChatBox() {
   const [uploadProgress, setUploadProgress] = useState({}); // cid -> percent
   const uploadCount = Object.keys(uploadProgress || {}).length;
   const [queuedFiles, setQueuedFiles] = useState([]); // {id, file, url, isImage, name, size, mime}
+  // Reaction UI state
+  const [activeReactionFor, setActiveReactionFor] = useState(null); // messageId
+  const longPressTimerRef = useRef(null);
+  // Per-message actions menu
+  const [msgMenuOpenId, setMsgMenuOpenId] = useState(null);
+
+  // Debounced inbox refresh
+  const inboxRefreshTimerRef = useRef(null);
+  const requestInboxRefresh = (delay = 300) => {
+    try { if (inboxRefreshTimerRef.current) clearTimeout(inboxRefreshTimerRef.current); } catch {}
+    inboxRefreshTimerRef.current = setTimeout(() => { try { fetchInbox(); } catch {} }, delay);
+  };
+  // per-user last seen fetch cooldown map (to avoid repeated failures)
+  const lastSeenCooldownRef = useRef({});
 
   // Fallback name for People list when first/last name is missing
   const nameFromConn = (c) => {
@@ -148,7 +176,7 @@ function ChatBox() {
     const now = new Date().toISOString();
     const previewText = data?.attachment?.name || (data?.attachment?.type === 'image' ? 'Image' : data.text);
     try { optimisticBump(data.senderId, { text: previewText, createdAt: now }, 1); } catch {}
-        try { fetchInbox(); } catch {}
+  try { requestInboxRefresh(150); } catch {}
         return;
       }
       // Active thread: bump without unread increment
@@ -171,15 +199,21 @@ function ChatBox() {
         }
       ]);
       markReadIfVisible();
-      try { fetchInbox(); } catch {}
+  try { requestInboxRefresh(150); } catch {}
     };
     const onStatus = ({ clientId, messageId, delivered }) => {
       if (!clientId) return;
       setChat((prev) => prev.map(m => m.clientId === clientId ? { ...m, messageId, status: delivered ? "delivered" : "sent" } : m));
     };
     const onTyping = ({ from, isTyping }) => {
-      if (from === receiverId) setPeerTyping(isTyping);
-      try { fetchInbox(); } catch {}
+      if (from === receiverId) {
+        setPeerTyping(isTyping);
+        if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
+        if (isTyping) {
+          peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 2000);
+        }
+      }
+  try { requestInboxRefresh(150); } catch {}
     };
     const onRead = ({ peerId }) => {
       if (peerId === receiverId) {
@@ -291,6 +325,20 @@ function ChatBox() {
   socket.on("call_unavailable", onCallUnavailable);
   socket.on('renegotiate_offer', onRenegotiateOffer);
   socket.on('renegotiate_answer', onRenegotiateAnswer);
+
+    // Chat message lifecycle events
+    const onEdited = ({ messageId, text, editedAt }) => {
+      setChat(prev => prev.map(m => (m.messageId === messageId ? { ...m, text, editedAt: editedAt || new Date().toISOString() } : m)));
+    };
+    const onDeleted = ({ messageId }) => {
+      setChat(prev => prev.map(m => (m.messageId === messageId ? { ...m, deleted: true, text: '', attachment: undefined } : m)));
+    };
+    const onReaction = ({ messageId, reactions }) => {
+      setChat(prev => prev.map(m => (m.messageId === messageId ? { ...m, reactions: Array.isArray(reactions) ? reactions : [] } : m)));
+    };
+    socket.on('message_edited', onEdited);
+    socket.on('message_deleted', onDeleted);
+    socket.on('message_reaction', onReaction);
   // Presence
   const onUserOnline = ({ userId }) => setPresence(p => ({ ...p, [userId]: true }));
   const onUserOffline = ({ userId }) => setPresence(p => ({ ...p, [userId]: false }));
@@ -303,19 +351,32 @@ function ChatBox() {
     setPresence(map);
   });
   // When a user goes offline, fetch their lastSeen once
-  socket.on('user_offline', async ({ userId }) => {
+  const fetchLastSeen = async (uid) => {
+    if (!uid || !serverUrl) return;
+    const now = Date.now();
+    const nextOk = lastSeenCooldownRef.current[uid] || 0;
+    if (now < nextOk) return; // still cooling down
     try {
-      const res = await axios.get(`${serverUrl}/api/user/${userId}/last-seen`, { withCredentials: true });
+      const res = await axios.get(`${serverUrl}/api/user/${uid}/last-seen`, { withCredentials: true });
       const ts = res.data?.lastSeen || null;
-      setLastSeenMap((m) => ({ ...m, [userId]: ts }));
-    } catch {}
-  });
+      setLastSeenMap((m) => ({ ...m, [uid]: ts }));
+      // regular refresh allowed again in 3 minutes
+      lastSeenCooldownRef.current[uid] = now + 180000;
+    } catch (e) {
+      const status = e?.response?.status;
+      // If unauthorized/forbidden, back off for a longer period
+      lastSeenCooldownRef.current[uid] = now + (status === 401 || status === 403 ? 600000 : 180000);
+    }
+  };
+
+  socket.on('user_offline', async ({ userId }) => { fetchLastSeen(userId); });
 
     return () => {
       socket.off("receive_message", onReceive);
       socket.off("message_status", onStatus);
       socket.off("typing", onTyping);
-      socket.off("messages_read", onRead);
+  socket.off("messages_read", onRead);
+  try { if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current); } catch {}
 
       socket.off("incoming_call", onIncomingCall);
       socket.off("call_answer", onCallAnswer);
@@ -327,8 +388,11 @@ function ChatBox() {
   socket.off('renegotiate_answer', onRenegotiateAnswer);
   socket.off('user_online', onUserOnline);
   socket.off('user_offline', onUserOffline);
-  socket.off('user_offline');
+      socket.off('user_offline');
   socket.off('presence_snapshot');
+      socket.off('message_edited', onEdited);
+      socket.off('message_deleted', onDeleted);
+      socket.off('message_reaction', onReaction);
     };
   }, [socket, userData?._id, receiverId]);
 
@@ -336,9 +400,14 @@ function ChatBox() {
   const fetchInbox = async () => {
     if (!userData?._id || !serverUrl) return;
     try {
+      setInboxLoading(true);
       const res = await axios.get(`${serverUrl}/api/chat/inbox`, { withCredentials: true });
-      setInbox(Array.isArray(res.data) ? res.data : []);
+  const rows = Array.isArray(res.data) ? res.data : [];
+  setInbox(rows);
+  const total = rows.reduce((sum, r) => sum + (r.unread || 0), 0);
+  try { setChatUnreadCount(total); } catch {}
     } catch {}
+    finally { setInboxLoading(false); }
   };
   useEffect(() => { fetchInbox(); }, [userData?._id, serverUrl]);
 
@@ -355,8 +424,9 @@ function ChatBox() {
         }
       } catch {}
       try {
-        const res = await axios.get(`${serverUrl}/api/chat/history/${receiverId}?page=1&limit=30`, { withCredentials: true });
+  const res = await axios.get(`${serverUrl}/api/chat/history/${receiverId}?page=1&limit=30`, { withCredentials: true });
   const rawItems = res.data.items || [];
+  setHistoryCursor(res.data?.nextCursor || null);
   const items = rawItems.map(msg => {
           if (msg.type === 'call') {
             const incoming = msg.from !== userData._id;
@@ -417,7 +487,7 @@ function ChatBox() {
     socket?.emit("mark_read", { from: receiverId, to: userData._id });
   // Optimistically zero unread for this thread in inbox
   setInbox(prev => (prev || []).map(r => r._id === receiverId ? { ...r, unread: 0 } : r));
-  try { fetchInbox(); } catch {}
+  try { requestInboxRefresh(150); } catch {}
   };
 
   const markReadIfVisible = () => {
@@ -427,6 +497,84 @@ function ChatBox() {
     if (nearBottom) markRead();
     setShowScrollDown(!nearBottom);
   };
+
+  // Infinite scroll: load older when near top
+  const loadOlder = async () => {
+    if (!receiverId || !serverUrl || loadingOlder) return;
+    if (!historyCursor) return;
+    setLoadingOlder(true);
+    const el = listRef.current;
+    const prevHeight = el ? el.scrollHeight : 0;
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '30');
+      params.set('before', historyCursor);
+      const res = await axios.get(`${serverUrl}/api/chat/history/${receiverId}?${params.toString()}`, { withCredentials: true });
+      const raw = res.data?.items || [];
+      const older = raw.map(msg => {
+        if (msg.type === 'call') {
+          const incoming = msg.from !== userData._id;
+          const labelBase = msg.callType === 'video' ? 'Video call' : 'Voice call';
+          let detail = msg.status;
+          if (msg.status === 'answered' && msg.startedAt && msg.endedAt) {
+            const sec = Math.max(0, Math.floor((new Date(msg.endedAt) - new Date(msg.startedAt)) / 1000));
+            const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+            const ss = String(sec % 60).padStart(2, '0');
+            detail = `duration ${mm}:${ss}`;
+          } else if (msg.status === 'rejected' || msg.status === 'missed' || msg.status === 'unavailable') {
+            detail = msg.status;
+          }
+          return {
+            _id: msg._id,
+            type: 'call',
+            incoming,
+            text: `${labelBase} · ${incoming ? 'from' : 'to'} them · ${detail}`,
+            status: undefined,
+            createdAt: msg.createdAt || msg.startedAt || new Date().toISOString()
+          };
+        }
+        const attachment = msg.attachmentUrl ? {
+          url: msg.attachmentUrl,
+          type: msg.attachmentType,
+          name: msg.attachmentName,
+          mime: msg.attachmentMime,
+          size: msg.attachmentSize,
+          width: msg.attachmentWidth,
+          height: msg.attachmentHeight,
+        } : undefined;
+        const text = (msg.text && msg.text.trim() !== '') ? msg.text : (attachment ? (attachment.type === 'image' ? 'Image' : (attachment.name || 'Attachment')) : '');
+        return {
+          ...msg,
+          text,
+          attachment,
+          incoming: msg.from !== userData._id,
+          clientId: undefined,
+          messageId: msg._id,
+          status: msg.readAt ? 'read' : (msg.deliveredAt ? 'delivered' : (msg.from === userData._id ? 'sent' : undefined))
+        };
+      });
+      setChat(prev => [...older, ...prev]);
+      setHistoryCursor(res.data?.nextCursor || null);
+      // Maintain scroll position after prepending
+      setTimeout(() => {
+        if (!el) return;
+        const newHeight = el.scrollHeight;
+        const delta = newHeight - prevHeight;
+        el.scrollTop = (el.scrollTop || 0) + delta;
+      }, 0);
+    } catch {}
+    finally { setLoadingOlder(false); }
+  };
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const onScrollTop = () => {
+      if (el.scrollTop < 40) loadOlder();
+    };
+    el.addEventListener('scroll', onScrollTop);
+    return () => el.removeEventListener('scroll', onScrollTop);
+  }, [receiverId, historyCursor, loadingOlder]);
 
   // UI helpers
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -527,13 +675,21 @@ function ChatBox() {
     if (!socket || !userData?._id || !uid) return;
     try { socket.emit('mark_read', { from: uid, to: userData._id }); } catch {}
     if (receiverId === uid) setChat(prev => prev.map(m => m.incoming ? { ...m, status: 'read' } : m));
-    try { fetchInbox(); } catch {}
+  try { requestInboxRefresh(150); } catch {}
   };
   // Close overflow menu on outside click
   useEffect(() => {
-    const onDocClick = () => setMenuOpenId(null);
+    const onDocClick = () => {
+      setMenuOpenId(null);
+      setActiveReactionFor(null);
+      setMsgMenuOpenId(null);
+    };
     document.addEventListener('click', onDocClick);
-    return () => document.removeEventListener('click', onDocClick);
+    return () => {
+      document.removeEventListener('click', onDocClick);
+      try { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); } catch {}
+      try { if (inboxRefreshTimerRef.current) clearTimeout(inboxRefreshTimerRef.current); } catch {}
+    };
   }, []);
   // Auto-collapse People when many unread
   const unreadTotal = inbox.reduce((sum, r) => sum + (r.unread || 0), 0);
@@ -576,7 +732,6 @@ function ChatBox() {
     setChat(prev => prev.map(m => m.incoming ? { ...m, status: 'read' } : m));
     try { fetchInbox(); } catch {}
   };
-
   const sendMessage = async () => {
     if (!receiverId || !userData?._id) return;
     const textToSend = message.trim();
@@ -616,11 +771,79 @@ function ChatBox() {
       setMessage("");
       socket?.emit("typing", { from: userData._id, to: receiverId, isTyping: false });
       try { fetchInbox(); } catch {}
+      scrollToBottomSoon();
     }
-
-  scrollToBottomSoon();
-    try { fetchInbox(); } catch {}
   };
+
+  // Edit/Delete window (10 minutes)
+  const EDIT_WINDOW_MS = 10 * 60 * 1000;
+  const canModify = (m) => {
+    if (!m || m.deleted) return false;
+    if (m.incoming) return false;
+    const ts = m.createdAt ? new Date(m.createdAt).getTime() : 0;
+    return ts > 0 && (Date.now() - ts) <= EDIT_WINDOW_MS;
+  };
+
+  // Message edit/delete/react helpers
+  const beginEdit = (m) => { if (!m?.messageId) return; setEditingId(m.messageId); setEditValue(m.text || ""); };
+  const cancelEdit = () => { setEditingId(null); setEditValue(""); };
+  const saveEdit = async (m) => {
+    const text = (editValue || '').trim();
+    if (!m?.messageId) return cancelEdit();
+    if (!text) return cancelEdit();
+    try {
+      await editMessageHttp(m.messageId, text);
+      setChat(prev => prev.map(x => (x.messageId === m.messageId ? { ...x, text, editedAt: new Date().toISOString() } : x)));
+      socket?.emit('message_edited', { messageId: m.messageId, to: receiverId, text });
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Failed to edit message';
+      try { toast?.error(msg); } catch {}
+    }
+    finally { cancelEdit(); }
+  };
+  const deleteMsg = async (m) => {
+    if (!m?.messageId) return;
+    try {
+      await deleteMessageHttp(m.messageId);
+      setChat(prev => prev.map(x => (x.messageId === m.messageId ? { ...x, deleted: true, text: '', attachment: undefined } : x)));
+      socket?.emit('message_deleted', { messageId: m.messageId, to: receiverId });
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Failed to delete message';
+      try { toast?.error(msg); } catch {}
+    }
+  };
+  const REACTION_FALLBACK_EMOJI = { like: '👍', love: '❤️', wow: '😮', sad: '😢', angry: '😡' };
+  const EMOJI_TO_KEY = { '👍':'like', '❤️':'love', '😮':'wow', '😂':'wow', '🙏':'love', '😢':'sad', '😡':'angry' };
+  const quickReact = async (m, reactionKey) => {
+    if (!m?.messageId) return;
+    const didReact = myReacted(m, reactionKey);
+    const prevReactions = Array.isArray(m.reactions) ? m.reactions : [];
+    const optimistic = didReact
+      ? prevReactions.filter(r => {
+          const norm = EMOJI_TO_KEY[r.emoji] || r.emoji;
+          return !(String(r.user) === String(userData._id) && norm === reactionKey);
+        })
+      : [...prevReactions, { user: userData._id, emoji: reactionKey, createdAt: new Date().toISOString() }];
+    setChat(prev => prev.map(x => (x.messageId === m.messageId ? { ...x, reactions: optimistic } : x)));
+    try {
+      const res = await reactMessageHttp(m.messageId, reactionKey);
+      const list = res.data?.reactions || [];
+      setChat(prev => prev.map(x => (x.messageId === m.messageId ? { ...x, reactions: list } : x)));
+      socket?.emit('message_reaction', { messageId: m.messageId, to: receiverId, reactions: list });
+    } catch (e) {
+      setChat(prev => prev.map(x => (x.messageId === m.messageId ? { ...x, reactions: prevReactions } : x)));
+    }
+  };
+  const myReacted = (m, key) => Array.isArray(m?.reactions) && m.reactions.some(r => {
+    const norm = EMOJI_TO_KEY[r.emoji] || r.emoji;
+    return norm === key && String(r.user) === String(userData._id);
+  });
+  const countReact = (m, key) => (Array.isArray(m?.reactions)
+    ? m.reactions.filter(r => {
+        const norm = EMOJI_TO_KEY[r.emoji] || r.emoji;
+        return norm === key;
+      }).length
+    : 0);
 
   const onPickFile = () => { try { fileInputRef.current?.click?.(); } catch {} };
   const sendAttachment = async (file) => {
@@ -808,14 +1031,6 @@ function ChatBox() {
       } catch {}
     };
     // Ensure we renegotiate when remote or local tracks change (helps when callee adds video after answering)
-    pc.onnegotiationneeded = () => {
-      try {
-        if (negoDebounceRef.current) clearTimeout(negoDebounceRef.current);
-        negoDebounceRef.current = setTimeout(() => {
-          if (!renegotiatingRef.current) renegotiate('normal').catch(() => {});
-        }, 150);
-      } catch {}
-    };
     // Auto renegotiate when tracks added after initial answer/offer (debounced)
     pc.onnegotiationneeded = () => {
       try {
@@ -976,6 +1191,32 @@ function ChatBox() {
     } catch {}
   };
 
+  // Enumerate media devices (labels available after permission granted)
+  const enumerateDevices = async () => {
+    try {
+      if (!navigator?.mediaDevices?.enumerateDevices) return;
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const mics = list.filter((d) => d.kind === 'audioinput');
+      const cams = list.filter((d) => d.kind === 'videoinput');
+      const speakers = list.filter((d) => d.kind === 'audiooutput');
+      setDevices({ mics, cams, speakers });
+      // Set defaults if not set
+      if (!selectedMicId && mics[0]) setSelectedMicId(mics[0].deviceId || 'default');
+      if (!selectedCamId && cams[0]) setSelectedCamId(cams[0].deviceId || 'default');
+      if (!selectedSpeakerId && speakers[0]) setSelectedSpeakerId(speakers[0].deviceId || 'default');
+    } catch {}
+  };
+
+  // React to device changes (plug/unplug)
+  useEffect(() => {
+    const onChange = () => { enumerateDevices(); };
+    try { navigator?.mediaDevices?.addEventListener?.('devicechange', onChange); } catch {}
+    return () => { try { navigator?.mediaDevices?.removeEventListener?.('devicechange', onChange); } catch {} };
+  }, []);
+
+  // Try initial enumeration (labels appear after first permission grant)
+  useEffect(() => { enumerateDevices(); }, []);
+
   // Expose a tiny ICE debug hook in dev for quick checks
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -1013,7 +1254,17 @@ function ChatBox() {
     const constraintsAudio = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
     try {
       const constraints = type === 'video' ? constraintsVideo : constraintsAudio;
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Apply preferred devices if selected
+      const withIds = { ...constraints };
+      try {
+        if (withIds.audio && selectedMicId) {
+          withIds.audio = { ...(typeof withIds.audio === 'object' ? withIds.audio : {}), deviceId: selectedMicId === 'default' ? undefined : { exact: selectedMicId } };
+        }
+        if (withIds.video && selectedCamId) {
+          withIds.video = { ...(typeof withIds.video === 'object' ? withIds.video : {}), deviceId: selectedCamId === 'default' ? undefined : { exact: selectedCamId } };
+        }
+      } catch {}
+      const stream = await navigator.mediaDevices.getUserMedia(withIds);
       localStreamRef.current = stream;
       if (localVideoRef.current) {
         try {
@@ -1022,6 +1273,8 @@ function ChatBox() {
           if (p && typeof p.then === 'function') p.catch(() => {});
         } catch {}
       }
+      // populate devices list after permission granted
+      try { enumerateDevices(); } catch {}
       return stream;
     } catch (e) {
   if (type === 'video') {
@@ -1032,6 +1285,7 @@ function ChatBox() {
           if (localVideoRef.current) {
             try { localVideoRef.current.srcObject = stream; } catch {}
           }
+          try { enumerateDevices(); } catch {}
           return stream;
         } catch (err) {
           throw e;
@@ -1039,6 +1293,71 @@ function ChatBox() {
       }
       throw e;
     }
+  };
+
+  // Switch active microphone during a call
+  const switchMic = async (deviceId) => {
+    try {
+      if (!pcRef.current) return;
+      const audio = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: deviceId === 'default' ? undefined : { exact: deviceId }, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const newTrack = audio.getAudioTracks()[0];
+      if (!newTrack) return;
+      const sender = pcRef.current.getSenders?.().find((s) => s.track && s.track.kind === 'audio');
+      if (sender) {
+        await sender.replaceTrack(newTrack).catch(() => {});
+        // Update local stream: stop old audio tracks, add new
+        try { localStreamRef.current?.getAudioTracks?.().forEach((t) => t.stop()); } catch {}
+        try { localStreamRef.current?.removeTrack?.(localStreamRef.current.getAudioTracks?.()[0]); } catch {}
+        try { localStreamRef.current?.addTrack?.(newTrack); } catch {}
+        setSelectedMicId(deviceId);
+      }
+    } catch {}
+  };
+
+  // Switch active camera during a call
+  const switchCamera = async (deviceId) => {
+    try {
+      if (!pcRef.current) return;
+      const video = await navigator.mediaDevices.getUserMedia({ video: { deviceId: deviceId === 'default' ? undefined : { exact: deviceId } } });
+      const newTrack = video.getVideoTracks()[0];
+      if (!newTrack) return;
+      const sender = pcRef.current.getSenders?.().find((s) => s.track && s.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(newTrack).catch(() => {});
+        // Update local stream and preview
+        try { localStreamRef.current?.getVideoTracks?.().forEach((t) => t.stop()); } catch {}
+        try { localStreamRef.current?.removeTrack?.(localStreamRef.current.getVideoTracks?.()[0]); } catch {}
+        try { localStreamRef.current?.addTrack?.(newTrack); } catch {}
+        if (localVideoRef.current) {
+          try { localVideoRef.current.srcObject = localStreamRef.current; } catch {}
+        }
+        setSelectedCamId(deviceId);
+        setCameraOff(false);
+      }
+    } catch {}
+  };
+
+  // Switch audio output sink (if supported by browser)
+  const switchSpeaker = async (deviceId) => {
+    try {
+      if (!remoteAudioRef.current) return;
+      if (typeof remoteAudioRef.current.setSinkId === 'function') {
+        await remoteAudioRef.current.setSinkId(deviceId);
+        setSelectedSpeakerId(deviceId);
+      }
+    } catch {}
+  };
+
+  // Flip camera between front/back where possible
+  const flipCamera = async () => {
+    try {
+      const cams = devices.cams || [];
+      if (!cams.length) return;
+      // Find current index; pick next
+      const idx = Math.max(0, cams.findIndex((c) => c.deviceId === selectedCamId));
+      const next = cams[(idx + 1) % cams.length];
+      if (next) await switchCamera(next.deviceId || 'default');
+    } catch {}
   };
 
   const startCall = async (type) => {
@@ -1441,9 +1760,26 @@ function ChatBox() {
               />
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
+              <style>{`
+                .scrollbar-hide::-webkit-scrollbar { display: none; }
+                @keyframes pop-in { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+                .animate-pop-in { animation: pop-in 140ms ease-out; }
+              `}</style>
               {/* Inbox list */}
               <div className="px-2 py-2 flex flex-col gap-1">
+                {inboxLoading && (
+                  <div className="space-y-1 animate-pulse">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center justify-between px-2 py-2 rounded-lg border bg-white dark:bg-[#1E1E1E] border-gray-200 dark:border-[#2C2F36]">
+                        <div className="flex items-center gap-2">
+                          <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-[#2C2F36]" />
+                          <div className="h-3 w-28 rounded bg-gray-100 dark:bg-[#2C2F36]" />
+                        </div>
+                        <div className="h-2 w-8 rounded bg-gray-100 dark:bg-[#2C2F36]" />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {/* Pinned */}
                 {pinnedInbox.length > 0 && (
                   <div className="mb-1">
@@ -1721,42 +2057,144 @@ function ChatBox() {
                           <span className="text-[11px] text-gray-900 dark:text-white bg-gray-200 dark:bg-[#1E1E1E] dark:border dark:border-[#2C2F36] rounded-full px-3 py-0.5">{niceDate(msg.createdAt)}</span>
                         </div>
                       )}
-                      <div className="inline-block max-w-[78%]">
+                      <div
+                        className="inline-block max-w-[78%] relative"
+                        onMouseEnter={() => setActiveReactionFor(msg.messageId)}
+                        onMouseLeave={() => setActiveReactionFor((curr) => (curr === msg.messageId ? null : curr))}
+                        onTouchStart={() => {
+                          try { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); } catch {}
+                          longPressTimerRef.current = setTimeout(() => setActiveReactionFor(msg.messageId), 400);
+                        }}
+                        onTouchMove={() => { try { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); } catch {} }}
+                        onTouchEnd={() => { try { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); } catch {} }}
+                        onFocus={() => setActiveReactionFor(msg.messageId)}
+                        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setActiveReactionFor(null); }}
+                        tabIndex={0}
+                      >
                         {msg.type === 'call' ? (
                           <span className="inline-block px-3 py-2 rounded-lg text-sm bg-amber-100 text-amber-900 border border-amber-200">{msg.text}</span>
                         ) : (
                           <>
-                            {msg.attachment ? (
+                            {msg.deleted ? (
+                              <span className={`inline-block px-3 py-2 rounded-2xl text-xs italic ${msg.incoming ? 'bg-gray-200 text-gray-600' : 'bg-gray-300 text-gray-700'}`}>Message deleted</span>
+                            ) : editingId === msg.messageId ? (
+                              <span className={`inline-flex items-center gap-2 ${msg.incoming ? 'bg-gray-200 dark:bg-[#1E1E1E] text-gray-900 dark:text-white border border-gray-200 dark:border-[#2C2F36]' : 'bg-blue-50 text-gray-800 border border-blue-200'} rounded-2xl px-2 py-2`}>
+                                <input className="text-sm bg-transparent outline-none" value={editValue} onChange={(e)=>setEditValue(e.target.value)} />
+                                <button className="text-xs text-blue-600" onClick={()=>saveEdit(msg)}>Save</button>
+                                <button className="text-xs text-gray-500" onClick={cancelEdit}>Cancel</button>
+                              </span>
+                            ) : msg.attachment ? (
                               msg.attachment.type === 'image' ? (
-                                  <div className="relative">
-                                    <a href={msg.attachment.url} target="_blank" rel="noreferrer" className="block">
-                                      <img src={msg.attachment.url} alt={msg.attachment.name || 'image'} className="rounded-lg border border-gray-200 dark:border-gray-800 max-w-[260px]" />
-                                    </a>
-                                    {!msg.incoming && uploadProgress[msg.clientId] != null && (
-                                      <div className="absolute inset-0 bg-black/40 flex items-end rounded-lg">
-                                        <div className="w-full h-1 bg-white/30">
-                                          <div className="h-1 bg-white" style={{ width: `${uploadProgress[msg.clientId]}%` }} />
-                                        </div>
+                                <div className="relative">
+                                  <a href={msg.attachment.url} target="_blank" rel="noreferrer" className="block">
+                                    <img src={msg.attachment.url} alt={msg.attachment.name || 'image'} className="rounded-lg border border-gray-200 dark:border-gray-800 max-w-[260px]" />
+                                  </a>
+                                  {!msg.incoming && uploadProgress[msg.clientId] != null && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-end rounded-lg">
+                                      <div className="w-full h-1 bg-white/30">
+                                        <div className="h-1 bg-white" style={{ width: `${uploadProgress[msg.clientId]}%` }} />
                                       </div>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
+                                </div>
                               ) : (
-                                  <div className="relative inline-block">
-                                    <a href={msg.attachment.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-2 px-3 py-2 rounded-2xl text-sm ${msg.incoming ? 'bg-gray-200 dark:bg-[#1E1E1E] text-gray-900 dark:text-white border border-gray-200 dark:border-[#2C2F36]' : 'bg-blue-600 dark:bg-[#1E1E1E] text-white dark:text-white border border-transparent dark:border-[#2C2F36]'}`}>
-                                      <FiPaperclip /> {msg.attachment.name || 'Attachment'}
-                                    </a>
-                                    {!msg.incoming && uploadProgress[msg.clientId] != null && (
-                                      <div className="absolute left-0 right-0 bottom-0 translate-y-1">
-                                        <div className="w-full h-1 bg-gray-300 dark:bg-gray-800 rounded">
-                                          <div className="h-1 bg-blue-600 dark:bg-blue-400 rounded" style={{ width: `${uploadProgress[msg.clientId]}%` }} />
-                                        </div>
+                                <div className="relative inline-block">
+                                  <a href={msg.attachment.url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-2 px-3 py-2 rounded-2xl text-sm ${msg.incoming ? 'bg-gray-200 dark:bg-[#1E1E1E] text-gray-900 dark:text-white border border-gray-200 dark:border-[#2C2F36]' : 'bg-blue-600 dark:bg-[#1E1E1E] text-white dark:text-white border border-transparent dark:border-[#2C2F36]'}`}>
+                                    <FiPaperclip /> {msg.attachment.name || 'Attachment'}
+                                  </a>
+                                  {!msg.incoming && uploadProgress[msg.clientId] != null && (
+                                    <div className="absolute left-0 right-0 bottom-0 translate-y-1">
+                                      <div className="w-full h-1 bg-gray-300 dark:bg-gray-800 rounded">
+                                        <div className="h-1 bg-blue-600 dark:bg-blue-400 rounded" style={{ width: `${uploadProgress[msg.clientId]}%` }} />
                                       </div>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
+                                </div>
                               )
                             ) : (
-                              <span className={`inline-block px-3 py-2 rounded-2xl text-sm ${msg.incoming ? 'bg-gray-200 dark:bg-[#1E1E1E] text-gray-900 dark:text-white border border-gray-200 dark:border-[#2C2F36]' : 'bg-blue-600 dark:bg-[#1E1E1E] text-white dark:text-white border border-transparent dark:border-[#2C2F36]'}`}>{msg.text}</span>
+                              <span className={`inline-block px-3 py-2 rounded-2xl text-sm ${msg.incoming ? 'bg-gray-200 dark:bg-[#1E1E1E] text-gray-900 dark:text-white border border-gray-200 dark:border-[#2C2F36]' : 'bg-blue-600 dark:bg-[#1E1E1E] text-white dark:text-white border border-transparent dark:border-[#2C2F36]'}`}>{msg.text}{msg.editedAt ? <span className="ml-1 text-[10px] opacity-70">(edited)</span> : null}</span>
                             )}
+                            {/* Quick reactions popover (hover/long-press) */}
+                            {!msg.deleted && activeReactionFor === msg.messageId && (
+                              <div className={`absolute ${msg.incoming ? 'left-0' : 'right-0'} -top-9 z-10`}
+                                   onClick={(e)=> e.stopPropagation()}
+                                   onMouseDown={(e)=> e.stopPropagation()}>
+                                <div className="inline-flex items-center gap-1 bg-gray-100 dark:bg-[#161616] rounded-full px-2 py-0.5 border border-gray-200 dark:border-[#2C2F36] shadow animate-pop-in" role="menu" aria-label="Add reaction">
+                                  {REACTIONS.map(({ key, label, icon: Icon, color, bg }) => (
+                                    <button
+                                      key={key}
+                                      className={`flex items-center justify-center w-7 h-7 rounded-full transition transform active:scale-95 focus:outline-none ${myReacted(msg, key) ? 'ring-1 ring-blue-400' : ''}`}
+                                      style={{ color, backgroundColor: bg }}
+                                      onClick={() => { quickReact(msg, key); setActiveReactionFor(null); }}
+                                      title={`React ${label}`}
+                                      aria-label={`React ${label}`}
+                                      role="menuitem"
+                                    >
+                                      <Icon className="text-[14px]" aria-hidden="true" />
+                                      {countReact(msg, key) > 0 && <span className="sr-only">{countReact(msg, key)} {label} reactions</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {/* Persistent reaction chips under bubble */}
+                            {!msg.deleted && Array.isArray(msg.reactions) && msg.reactions.length > 0 && (
+                              <div className={`mt-1 flex flex-wrap gap-1 ${msg.incoming ? 'justify-start' : 'justify-end'}`}>
+                                {(() => {
+                                  const presentKeys = new Set((msg.reactions || []).map(r => (EMOJI_TO_KEY[r.emoji] || r.emoji)));
+                                  return REACTIONS.filter(r => presentKeys.has(r.key)).map(({ key, label, icon: Icon, color, bg }) => (
+                                    <button
+                                      key={key}
+                                      onClick={() => quickReact(msg, key)}
+                                      className={`h-5 inline-flex items-center gap-1 px-2 rounded-full text-[11px] border transition transform active:scale-95 animate-pop-in ${myReacted(msg, key) ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-gray-100 dark:bg-[#161616] border-gray-200 dark:border-[#2C2F36] text-gray-700 dark:text-white'}`}
+                                      title={`${label}`}
+                                      aria-label={`${label} reactions, ${countReact(msg, key)} total`}
+                                      aria-pressed={myReacted(msg, key)}
+                                    >
+                                      <Icon className="text-[12px]" style={{ color }} aria-hidden="true" />
+                                      <span className="text-[10px] leading-none">{countReact(msg, key)}</span>
+                                    </button>
+                                  ));
+                                })()}
+                              </div>
+                            )}
+                            {/* Message actions three-dots menu (own messages, within 10 minutes) */}
+                            {!msg.deleted && !msg.incoming && canModify(msg) && (
+                              <div className="inline-block ml-2 align-middle relative" onClick={(e)=> e.stopPropagation()}>
+                                <button
+                                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-black text-gray-500"
+                                  aria-haspopup="menu"
+                                  aria-expanded={msgMenuOpenId === msg.messageId}
+                                  aria-label="Message actions"
+                                  onClick={() => setMsgMenuOpenId((v) => v === msg.messageId ? null : msg.messageId)}
+                                >
+                                  <FiMoreVertical />
+                                </button>
+                                {msgMenuOpenId === msg.messageId && (
+                                  <div className={`absolute ${msg.incoming ? 'left-0' : 'right-0'} mt-1 w-28 bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#2C2F36] rounded shadow z-10`}
+                                       role="menu"
+                                       aria-label="Message actions menu">
+                                    <button
+                                      className="w-full text-left text-xs px-3 py-2 text-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-black"
+                                      role="menuitem"
+                                      onClick={() => { setMsgMenuOpenId(null); beginEdit(msg); }}
+                                    >Edit</button>
+                                    <button
+                                      className="w-full text-left text-xs px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-black"
+                                      role="menuitem"
+                                      onClick={async () => {
+                                        setMsgMenuOpenId(null);
+                                        try {
+                                          const ok = await (confirm ? confirm({ title: 'Delete message', message: 'This will delete the message for everyone. Continue?', confirmText: 'Delete', cancelText: 'Cancel' }) : Promise.resolve(true));
+                                          if (ok) deleteMsg(msg);
+                                        } catch {}
+                                      }}
+                                    >Delete</button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {/* Delivery status */}
                             {!msg.incoming && (
                               <div className="mt-0.5 text-[10px] text-gray-500 dark:text-white inline-flex items-center gap-0.5">
                                 {msg.status === 'read' ? (
@@ -1852,8 +2290,10 @@ function ChatBox() {
                 />
                 <button
                   onClick={sendMessage}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-md transition text-sm inline-flex items-center justify-center gap-1"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white px-4 rounded-r-md transition text-sm inline-flex items-center justify-center gap-1"
                   title="Send"
+                  aria-label="Send message"
+                  disabled={!receiverId || (!message.trim() && queuedFiles.length === 0)}
                 >
                   <FiSend />
                 </button>
@@ -1890,6 +2330,15 @@ function ChatBox() {
   onShareToggle={toggleScreenShare}
   sharing={sharing}
   getStats={getStats}
+    // Devices
+    devices={devices}
+    selectedMicId={selectedMicId}
+    selectedCamId={selectedCamId}
+    selectedSpeakerId={selectedSpeakerId}
+    onSelectMic={switchMic}
+    onSelectCam={switchCamera}
+    onSelectSpeaker={switchSpeaker}
+    onFlipCamera={flipCamera}
         muted={muted}
         cameraOff={cameraOff}
         localVideoRef={localVideoRef}

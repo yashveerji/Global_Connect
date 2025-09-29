@@ -16,6 +16,8 @@ const socketRef = useRef(null)
 const [socket, setSocket] = useState(null)
 // Global unread notification count (simple client-side)
 const [unreadCount, setUnreadCount] = useState(0)
+// Global chat unread count
+const [chatUnreadCount, setChatUnreadCount] = useState(0)
 const getCurrentUser=async ()=>{
     try {
         const cacheBust = `&_=${Date.now()}`;
@@ -214,7 +216,9 @@ useEffect(() => {
   // expose app-wide socket (reactive)
   socket,
   unreadCount,
-  setUnreadCount
+  setUnreadCount,
+  chatUnreadCount,
+  setChatUnreadCount
   }
   return (
     <userDataContext.Provider value={value}>
