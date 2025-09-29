@@ -16,15 +16,47 @@ export const createPost = async (req, res) => {
             newPost = await Post.create({ author: req.userId, description });
         }
 
-        const populated = await Post.findById(newPost._id)
-            .populate("author", "firstName lastName profileImage headline userName")
-            .populate("repostedFrom", "firstName lastName profileImage headline userName")
-            .populate("comment.user", "firstName lastName profileImage headline")
-            .populate("comment.replies.user", "firstName lastName profileImage headline userName")
-            .populate("reactions.user", "firstName lastName profileImage userName");
+        // helpers
+        const addBust = (url, ts) => {
+            if (!url) return url;
+            const sep = url.includes("?") ? "&" : "?";
+            return `${url}${sep}v=${ts}`;
+        };
+        const bustUser = (u, ts) => {
+            if (!u) return u;
+            const o = u.toObject ? u.toObject() : { ...u };
+            o.profileImage = addBust(o.profileImage, ts);
+            o.coverImage = addBust(o.coverImage, ts);
+            return o;
+        };
 
+        const populated = await Post.findById(newPost._id)
+            .populate("author", "firstName lastName profileImage headline userName updatedAt")
+            .populate("repostedFrom", "firstName lastName profileImage headline userName updatedAt")
+            .populate("comment.user", "firstName lastName profileImage headline updatedAt")
+            .populate("comment.replies.user", "firstName lastName profileImage headline userName updatedAt")
+            .populate("reactions.user", "firstName lastName profileImage userName updatedAt");
+
+        // bust images on response
+        try {
+            const ts = Date.now();
+            const obj = populated.toObject();
+            obj.author = bustUser(obj.author, obj.author?.updatedAt ? new Date(obj.author.updatedAt).getTime() : ts);
+            if (obj.repostedFrom) obj.repostedFrom = bustUser(obj.repostedFrom, obj.repostedFrom?.updatedAt ? new Date(obj.repostedFrom.updatedAt).getTime() : ts);
+            if (Array.isArray(obj.comment)) obj.comment = obj.comment.map(c => ({
+                ...c,
+                user: bustUser(c.user, c.user?.updatedAt ? new Date(c.user.updatedAt).getTime() : ts),
+                replies: (c.replies || []).map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }))
+            }));
+            if (Array.isArray(obj.reactions)) obj.reactions = obj.reactions.map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }));
+            res.set('Cache-Control', 'no-store');
+            return res.status(201).json(obj);
+        } catch {
+            res.set('Cache-Control', 'no-store');
+            return res.status(201).json(populated);
+        }
+        // emit (non-critical busting for sockets can be added later)
         io.emit("postCreated", populated);
-        return res.status(201).json(populated);
     } catch (error) {
         return res.status(500).json({ message: `create post error ${error}` });
     }
@@ -35,15 +67,42 @@ export const getPost = async (req, res) => {
         const pageParam = req.query.page;
         const limitParam = req.query.limit;
 
+        const addBust = (url, ts) => {
+            if (!url) return url;
+            const sep = url.includes("?") ? "&" : "?";
+            return `${url}${sep}v=${ts}`;
+        };
+        const bustUser = (u, ts) => {
+            if (!u) return u;
+            const o = u.toObject ? u.toObject() : { ...u };
+            o.profileImage = addBust(o.profileImage, ts);
+            o.coverImage = addBust(o.coverImage, ts);
+            return o;
+        };
+
         if (!pageParam && !limitParam) {
             const posts = await Post.find()
-                .populate("author", "firstName lastName profileImage headline userName")
-                .populate("repostedFrom", "firstName lastName profileImage headline userName")
-                .populate("comment.user", "firstName lastName profileImage headline")
-                .populate("comment.replies.user", "firstName lastName profileImage headline userName")
-                .populate("reactions.user", "firstName lastName profileImage userName")
+                .populate("author", "firstName lastName profileImage headline userName updatedAt")
+                .populate("repostedFrom", "firstName lastName profileImage headline userName updatedAt")
+                .populate("comment.user", "firstName lastName profileImage headline updatedAt")
+                .populate("comment.replies.user", "firstName lastName profileImage headline userName updatedAt")
+                .populate("reactions.user", "firstName lastName profileImage userName updatedAt")
                 .sort({ createdAt: -1 });
-            return res.status(200).json(posts);
+            const ts = Date.now();
+            const out = posts.map(p => {
+                const o = p.toObject();
+                o.author = bustUser(o.author, o.author?.updatedAt ? new Date(o.author.updatedAt).getTime() : ts);
+                if (o.repostedFrom) o.repostedFrom = bustUser(o.repostedFrom, o.repostedFrom?.updatedAt ? new Date(o.repostedFrom.updatedAt).getTime() : ts);
+                if (Array.isArray(o.comment)) o.comment = o.comment.map(c => ({
+                    ...c,
+                    user: bustUser(c.user, c.user?.updatedAt ? new Date(c.user.updatedAt).getTime() : ts),
+                    replies: (c.replies || []).map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }))
+                }));
+                if (Array.isArray(o.reactions)) o.reactions = o.reactions.map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }));
+                return o;
+            });
+            res.set('Cache-Control', 'no-store');
+            return res.status(200).json(out);
         }
 
         const page = Math.max(parseInt(pageParam || "1", 10), 1);
@@ -55,16 +114,30 @@ export const getPost = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
-                .populate("author", "firstName lastName profileImage headline userName")
-                .populate("repostedFrom", "firstName lastName profileImage headline userName")
-                .populate("comment.user", "firstName lastName profileImage headline")
-                .populate("comment.replies.user", "firstName lastName profileImage headline userName")
-                .populate("reactions.user", "firstName lastName profileImage userName"),
+                .populate("author", "firstName lastName profileImage headline userName updatedAt")
+                .populate("repostedFrom", "firstName lastName profileImage headline userName updatedAt")
+                .populate("comment.user", "firstName lastName profileImage headline updatedAt")
+                .populate("comment.replies.user", "firstName lastName profileImage headline userName updatedAt")
+                .populate("reactions.user", "firstName lastName profileImage userName updatedAt"),
             Post.countDocuments()
         ]);
 
         const hasMore = page * limit < total;
-        return res.status(200).json({ page, limit, total, hasMore, items });
+        const ts = Date.now();
+        const mapped = items.map(p => {
+            const o = p.toObject();
+            o.author = bustUser(o.author, o.author?.updatedAt ? new Date(o.author.updatedAt).getTime() : ts);
+            if (o.repostedFrom) o.repostedFrom = bustUser(o.repostedFrom, o.repostedFrom?.updatedAt ? new Date(o.repostedFrom.updatedAt).getTime() : ts);
+            if (Array.isArray(o.comment)) o.comment = o.comment.map(c => ({
+                ...c,
+                user: bustUser(c.user, c.user?.updatedAt ? new Date(c.user.updatedAt).getTime() : ts),
+                replies: (c.replies || []).map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }))
+            }));
+            if (Array.isArray(o.reactions)) o.reactions = o.reactions.map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }));
+            return o;
+        });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ page, limit, total, hasMore, items: mapped });
     } catch (error) {
         return res.status(500).json({ message: "getPost error" });
     }
