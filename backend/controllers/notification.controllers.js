@@ -11,12 +11,27 @@ export const getNotifications = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
-                .populate("relatedUser","firstName lastName profileImage userName")
+                .populate("relatedUser","firstName lastName profileImage userName updatedAt")
                 .populate("relatedPost","image description"),
             Notification.countDocuments(filter)
         ]);
         const hasMore = page * limit < total;
-        return res.status(200).json({ page, limit, total, hasMore, items });
+        // cache-bust avatars for relatedUser
+        const addBust = (url, ts) => {
+            if (!url) return url;
+            const sep = url.includes("?") ? "&" : "?";
+            return `${url}${sep}v=${ts}`;
+        };
+        const mapped = items.map(n => {
+            const o = n.toObject();
+            if (o.relatedUser) {
+                const ts = o.relatedUser.updatedAt ? new Date(o.relatedUser.updatedAt).getTime() : Date.now();
+                o.relatedUser.profileImage = addBust(o.relatedUser.profileImage, ts);
+            }
+            return o;
+        });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ page, limit, total, hasMore, items: mapped });
     } catch (error) {
         return res.status(500).json({ message: `get notification error ${error}` });
     }

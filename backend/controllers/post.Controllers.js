@@ -216,7 +216,28 @@ export const comment = async (req, res) => {
         } catch {}
 
         io.emit("commentAdded", { postId, comm: post.comment });
-        return res.status(200).json(post);
+        // Bust avatars in returned post comments
+        try {
+            const addBust = (url, ts) => { if (!url) return url; const sep = url.includes("?") ? "&" : "?"; return `${url}${sep}v=${ts}`; };
+            const ts = Date.now();
+            const p = await Post.findById(postId)
+                .populate('comment.user', 'firstName lastName profileImage headline userName updatedAt')
+                .populate('comment.replies.user', 'firstName lastName profileImage headline userName updatedAt');
+            const obj = p.toObject();
+            obj.comment = (obj.comment || []).map(c => ({
+                ...c,
+                user: c.user ? { ...c.user, profileImage: addBust(c.user.profileImage, c.user.updatedAt ? new Date(c.user.updatedAt).getTime() : ts) } : c.user,
+                replies: (c.replies || []).map(r => ({
+                    ...r,
+                    user: r.user ? { ...r.user, profileImage: addBust(r.user.profileImage, r.user.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) } : r.user
+                }))
+            }));
+            res.set('Cache-Control', 'no-store');
+            return res.status(200).json(obj);
+        } catch {
+            res.set('Cache-Control', 'no-store');
+            return res.status(200).json(post);
+        }
     } catch (error) {
         return res.status(500).json({ message: `comment error ${error}` });
     }
@@ -483,15 +504,31 @@ export const getSavedPosts = async (req, res) => {
         const user = await User.findById(userId).populate({
             path: "savedPosts",
             populate: [
-                { path: "author", select: "firstName lastName profileImage headline userName" },
-                { path: "repostedFrom", select: "firstName lastName profileImage headline userName" },
-                { path: "comment.user", select: "firstName lastName profileImage headline" },
-                { path: "comment.replies.user", select: "firstName lastName profileImage headline userName" },
-                { path: "reactions.user", select: "firstName lastName profileImage userName" }
+                { path: "author", select: "firstName lastName profileImage headline userName updatedAt" },
+                { path: "repostedFrom", select: "firstName lastName profileImage headline userName updatedAt" },
+                { path: "comment.user", select: "firstName lastName profileImage headline updatedAt" },
+                { path: "comment.replies.user", select: "firstName lastName profileImage headline userName updatedAt" },
+                { path: "reactions.user", select: "firstName lastName profileImage userName updatedAt" }
             ]
         });
         if (!user) return res.status(404).json({ message: "User not found" });
-        return res.status(200).json(user.savedPosts || []);
+        const addBust = (url, ts) => { if (!url) return url; const sep = url.includes("?") ? "&" : "?"; return `${url}${sep}v=${ts}`; };
+        const bustUser = (u, ts) => { if (!u) return u; const o = u.toObject ? u.toObject() : { ...u }; o.profileImage = addBust(o.profileImage, ts); o.coverImage = addBust(o.coverImage, ts); return o; };
+        const ts = Date.now();
+        const out = (user.savedPosts || []).map(p => {
+            const o = p.toObject();
+            o.author = bustUser(o.author, o.author?.updatedAt ? new Date(o.author.updatedAt).getTime() : ts);
+            if (o.repostedFrom) o.repostedFrom = bustUser(o.repostedFrom, o.repostedFrom?.updatedAt ? new Date(o.repostedFrom.updatedAt).getTime() : ts);
+            if (Array.isArray(o.comment)) o.comment = o.comment.map(c => ({
+                ...c,
+                user: bustUser(c.user, c.user?.updatedAt ? new Date(c.user.updatedAt).getTime() : ts),
+                replies: (c.replies || []).map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }))
+            }));
+            if (Array.isArray(o.reactions)) o.reactions = o.reactions.map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }));
+            return o;
+        });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json(out);
     } catch (error) {
         return res.status(500).json({ message: `get saved posts error ${error}` });
     }
@@ -532,16 +569,32 @@ export const searchPosts = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
-                .populate("author", "firstName lastName profileImage headline userName")
-                .populate("repostedFrom", "firstName lastName profileImage headline userName")
-                .populate("comment.user", "firstName lastName profileImage headline")
-                .populate("comment.replies.user", "firstName lastName profileImage headline userName")
-                .populate("reactions.user", "firstName lastName profileImage userName"),
+                .populate("author", "firstName lastName profileImage headline userName updatedAt")
+                .populate("repostedFrom", "firstName lastName profileImage headline userName updatedAt")
+                .populate("comment.user", "firstName lastName profileImage headline updatedAt")
+                .populate("comment.replies.user", "firstName lastName profileImage headline userName updatedAt")
+                .populate("reactions.user", "firstName lastName profileImage userName updatedAt"),
             Post.countDocuments(filter)
         ]);
 
+        const addBust = (url, ts) => { if (!url) return url; const sep = url.includes("?") ? "&" : "?"; return `${url}${sep}v=${ts}`; };
+        const bustUser = (u, ts) => { if (!u) return u; const o = u.toObject ? u.toObject() : { ...u }; o.profileImage = addBust(o.profileImage, ts); o.coverImage = addBust(o.coverImage, ts); return o; };
         const hasMore = page * limit < total;
-        return res.status(200).json({ page, limit, total, hasMore, items });
+        const ts = Date.now();
+        const mapped = items.map(p => {
+            const o = p.toObject();
+            o.author = bustUser(o.author, o.author?.updatedAt ? new Date(o.author.updatedAt).getTime() : ts);
+            if (o.repostedFrom) o.repostedFrom = bustUser(o.repostedFrom, o.repostedFrom?.updatedAt ? new Date(o.repostedFrom.updatedAt).getTime() : ts);
+            if (Array.isArray(o.comment)) o.comment = o.comment.map(c => ({
+                ...c,
+                user: bustUser(c.user, c.user?.updatedAt ? new Date(c.user.updatedAt).getTime() : ts),
+                replies: (c.replies || []).map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }))
+            }));
+            if (Array.isArray(o.reactions)) o.reactions = o.reactions.map(r => ({ ...r, user: bustUser(r.user, r.user?.updatedAt ? new Date(r.user.updatedAt).getTime() : ts) }));
+            return o;
+        });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ page, limit, total, hasMore, items: mapped });
     } catch (error) {
         console.error("searchPosts error", error);
         return res.status(500).json({ message: "post search error" });

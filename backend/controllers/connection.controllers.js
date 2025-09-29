@@ -166,10 +166,19 @@ export const getConnectionRequests = async (req, res) => {
 
     const requests = await Connection.find({ receiver: userId, status: "pending" }).populate(
       "sender",
-      "firstName lastName email userName profileImage headline"
+      "firstName lastName email userName profileImage headline updatedAt"
     );
-
-    return res.status(200).json(requests);
+    const addBust = (url, ts) => { if (!url) return url; const sep = url.includes("?") ? "&" : "?"; return `${url}${sep}v=${ts}`; };
+    const out = requests.map(r => {
+      const o = r.toObject();
+      if (o.sender) {
+        const ts = o.sender.updatedAt ? new Date(o.sender.updatedAt).getTime() : Date.now();
+        o.sender.profileImage = addBust(o.sender.profileImage, ts);
+      }
+      return o;
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(out);
   } catch (error) {
     console.error(`getConnectionRequests error: ${error}`);
     return res.status(500).json({ message: "Server error" });
@@ -183,10 +192,17 @@ export const getUserConnections = async (req, res) => {
 
     const user = await User.findById(userId).populate(
       "connection",
-      "firstName lastName userName profileImage headline"
+      "firstName lastName userName profileImage headline updatedAt"
     );
-
-    return res.status(200).json(user.connection);
+    const addBust = (url, ts) => { if (!url) return url; const sep = url.includes("?") ? "&" : "?"; return `${url}${sep}v=${ts}`; };
+    const out = (user.connection || []).map(u => {
+      const o = u.toObject();
+      const ts = o.updatedAt ? new Date(o.updatedAt).getTime() : Date.now();
+      o.profileImage = addBust(o.profileImage, ts);
+      return o;
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(out);
   } catch (error) {
     console.error(`getUserConnections error: ${error}`);
     return res.status(500).json({ message: "Server error" });
