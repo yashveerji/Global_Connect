@@ -54,10 +54,11 @@ export const updateProfile = async (req, res) => {
 
     // Handle file uploads
     if (req.files?.profileImage) {
-      profileImage = await uploadOnCloudinary(req.files.profileImage[0].path);
+      // Using memoryStorage: pass the multer file object (has buffer) to uploader
+      profileImage = await uploadOnCloudinary(req.files.profileImage[0]);
     }
     if (req.files?.coverImage) {
-      coverImage = await uploadOnCloudinary(req.files.coverImage[0].path);
+      coverImage = await uploadOnCloudinary(req.files.coverImage[0]);
     }
 
     // Build update object
@@ -159,6 +160,38 @@ export const getLastSeen = async (req, res) => {
     return res.status(200).json({ lastSeen: user.lastSeen || null });
   } catch (error) {
     console.error("getLastSeen error:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ✅ Remove profile image (sets field to empty)
+export const removeProfileImage = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: { profileImage: "" } },
+      { new: true }
+    ).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error("removeProfileImage error:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ✅ Remove cover image (sets field to empty)
+export const removeCoverImage = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: { coverImage: "" } },
+      { new: true }
+    ).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error("removeCoverImage error:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };

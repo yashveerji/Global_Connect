@@ -79,6 +79,16 @@ function Home() {
     run();
   }, [uploadPost]);
 
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (uploadPost) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+    return undefined;
+  }, [uploadPost]);
+
   return (
     <motion.div
       className="w-full min-h-screen flex flex-col lg:flex-row p-5 gap-5 relative"
@@ -206,52 +216,73 @@ function Home() {
       {/* Post Modal */}
       <AnimatePresence>
         {uploadPost && (
-          <>
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setUploadPost(false)}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/50" />
+
+            {/* Modal panel */}
             <motion.div
-              className="fixed inset-0 bg-black z-40"
-              onClick={() => setUploadPost(false)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.5 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              className="fixed top-1/2 left-1/2 w-[90%] max-w-md card p-5 transform -translate-x-1/2 -translate-y-1/2 z-50"
+              className="relative w-full max-w-lg card p-5 z-10 max-h-[85vh] flex flex-col pointer-events-auto"
               role="dialog"
               aria-modal="true"
               initial={{ opacity: 0, scale: 0.98, y: -6 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98, y: -6 }}
               transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center">
                 <h2 className="font-semibold text-lg">Create Post</h2>
                 <RxCross1
                   className="cursor-pointer"
                   onClick={() => setUploadPost(false)}
+                  aria-label="Close"
                 />
               </div>
-              <textarea
-                className="input mt-3 resize-none h-32"
-                placeholder="What's on your mind?"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              {frontendImage && (
-                <motion.img
-                  src={frontendImage}
-                  alt="Preview"
-                  className="mt-3 w-full rounded-lg border border-gray-200 dark:border-[var(--gc-border)]"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
+
+              {/* Scrollable content */}
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <textarea
+                  className="input mt-3 resize-none h-32"
+                  placeholder="What's on your mind?"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                 />
-              )}
-              <div className="flex justify-between items-center mt-4">
+                {frontendImage && (
+                  <motion.img
+                    src={frontendImage}
+                    alt="Preview"
+                    className="mt-3 w-full max-h-[50vh] object-contain rounded-lg border border-gray-200 dark:border-[var(--gc-border)]"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                  />
+                )}
+              </div>
+
+              {/* Action bar pinned to bottom of modal */}
+              <div className="shrink-0 flex justify-center items-center gap-4 mt-4 pt-3 border-t border-gray-200 dark:border-[var(--gc-border)]">
                 <BsImage
                   className="cursor-pointer"
                   style={{ color: 'var(--gc-primary)' }}
                   onClick={() => image.current.click()}
                 />
+                {frontendImage && (
+                  <button
+                    type="button"
+                    className="text-sm px-2 py-1 rounded border border-gray-200 dark:border-[var(--gc-border)] hover:bg-gray-50 dark:hover:bg-[var(--gc-surface)]"
+                    onClick={() => { setFrontendImage(""); setBackendImage(""); if (image.current) image.current.value = null; }}
+                    aria-label="Remove selected image"
+                  >
+                    Remove image
+                  </button>
+                )}
                 <input type="file" ref={image} hidden onChange={handleImage} />
                 <motion.button
                   className="btn-primary"
@@ -264,7 +295,7 @@ function Home() {
                 </motion.button>
               </div>
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>

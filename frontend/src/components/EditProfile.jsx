@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { RxCross1 } from "react-icons/rx";
@@ -166,160 +166,194 @@ function EditProfile() {
     }
   };
 
+  const removeProfile = async () => {
+    try {
+      const result = await axios.delete(`${serverUrl}/api/user/profile-image`, { withCredentials: true });
+      setFrontendProfileImage(dp);
+      setBackendProfileImage(null);
+      setUserData(result.data);
+    } catch (e) { console.log(e); }
+  };
+
+  const removeCover = async () => {
+    try {
+      const result = await axios.delete(`${serverUrl}/api/user/cover-image`, { withCredentials: true });
+      setFrontendCoverImage(null);
+      setBackendCoverImage(null);
+      setUserData(result.data);
+    } catch (e) { console.log(e); }
+  };
+  // Lock background scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   const overlay = (
-    <div className="fixed inset-0 z-[1200]">
-      {/* Backdrop */}
-      <AnimatePresence>
-        <motion.div
-          key="backdrop"
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-          onClick={() => setEdit(false)}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        />
-      </AnimatePresence>
-
-      {/* Hidden file inputs */}
-      <input type="file" accept="image/*" hidden ref={profileImage} onChange={handleProfileImage} />
-      <input type="file" accept="image/*" hidden ref={coverImage} onChange={handleCoverImage} />
-
-      {/* Modal - transform centered */}
-      {/* Wrapper keeps translate centering; inner motion animates scale/opacity */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="fixed z-[1201] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] max-w-2xl max-h-[86vh]"
+    <AnimatePresence>
+      <motion.div
+        key="edit-overlay"
+        className="fixed inset-0 z-[1200] flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
       >
-        <AnimatePresence>
-          <motion.div
-            key="modal-inner"
-            className="overflow-hidden shadow-elevated rounded-2xl"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.18 }}
-          >
-        <div className="card p-0 overflow-hidden relative">
-          {/* Close button */}
-          <button
-            className="absolute top-3 right-3 p-2 rounded-full hover-lift"
-            onClick={() => setEdit(false)}
-            aria-label="Close"
-            title="Close"
-          >
-            <RxCross1 className="w-5 h-5 text-gray-600 dark:text-[var(--gc-muted)]" />
-          </button>
+        {/* Backdrop */}
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEdit(false)} />
 
-          {/* Scrollable content */}
-          <div className="max-h-[86vh] overflow-y-auto">
-            {/* Cover image */}
-            <div
-              className="relative w-full h-44 overflow-hidden cursor-pointer group border-b border-gray-200 dark:border-[var(--gc-border)]"
-              onClick={() => coverImage.current?.click()}
+        {/* Hidden file inputs */}
+        <input type="file" accept="image/*" hidden ref={profileImage} onChange={handleProfileImage} />
+        <input type="file" accept="image/*" hidden ref={coverImage} onChange={handleCoverImage} />
+
+        {/* Modal panel */}
+        <motion.div
+          className="relative w-full max-w-2xl max-h-[86vh] z-[1201] overflow-hidden shadow-elevated rounded-2xl pointer-events-auto"
+          initial={{ opacity: 0, scale: 0.98, y: -6 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.98, y: -6 }}
+          transition={{ duration: 0.18 }}
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="card p-0 overflow-hidden relative flex flex-col max-h-[86vh]">
+            {/* Close button */}
+            <button
+              className="absolute top-3 right-3 p-2 rounded-full hover-lift"
+              onClick={() => setEdit(false)}
+              aria-label="Close"
+              title="Close"
             >
-              {frontendCoverImage ? (
-                <img src={frontendCoverImage} alt="cover" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-[var(--gc-muted)] text-sm">
-                  Add cover photo
+              <RxCross1 className="w-5 h-5 text-gray-600 dark:text-[var(--gc-muted)]" />
+            </button>
+
+            {/* Scrollable content */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {/* Cover image */}
+              <div className="relative border-b border-gray-200 dark:border-[var(--gc-border)]">
+                <div
+                  className="w-full h-44 overflow-hidden cursor-pointer group"
+                  onClick={(e) => { e.stopPropagation(); coverImage.current?.click(); }}
+                >
+                {frontendCoverImage ? (
+                  <img src={frontendCoverImage} alt="cover" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500 dark:text-[var(--gc-muted)] text-sm">
+                    Add cover photo
+                  </div>
+                )}
+                <FiCamera className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-700 dark:text-[var(--gc-text)]/80 text-xl opacity-75 group-hover:opacity-100" />
                 </div>
-              )}
-              <FiCamera className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-700 dark:text-[var(--gc-text)]/80 text-xl opacity-75 group-hover:opacity-100" />
-            </div>
-
-            {/* Profile image */}
-            <div
-              className="relative w-24 h-24 rounded-full overflow-hidden border-4 shadow-lg -mt-10 ml-6 cursor-pointer"
-              style={{ borderColor: "var(--gc-surface)" }}
-              onClick={() => profileImage.current?.click()}
-            >
-              <img src={frontendProfileImage} alt="profile" className="w-full h-full object-cover" />
-              <div
-                className="absolute bottom-0 right-0 p-1 rounded-full border-2"
-                style={{ background: "var(--gc-primary)", borderColor: "var(--gc-surface)" }}
-              >
-                <FiPlus className="text-white" />
+                {frontendCoverImage && (
+                  <div className="p-2 flex justify-end">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); removeCover(); }} className="text-sm px-3 py-1 rounded border border-gray-200 dark:border-[var(--gc-border)] hover:bg-gray-50 dark:hover:bg-[var(--gc-surface)]">
+                      Remove cover image
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
 
-            {/* Form */}
-            <form className="p-5 pt-4 space-y-6" onSubmit={(e) => { e.preventDefault(); handleSaveProfile(); }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { placeholder: "First Name", value: firstName, setter: setFirstName },
-                  { placeholder: "Last Name", value: lastName, setter: setLastName },
-                  { placeholder: "Username", value: userName, setter: setUserName },
-                  { placeholder: "Headline", value: headline, setter: setHeadline },
-                  { placeholder: "Location", value: location, setter: setLocation },
-                  { placeholder: "Gender", value: gender, setter: setGender },
-                ].map((field, idx) => (
-                  <input
-                    key={idx}
-                    type="text"
-                    placeholder={field.placeholder}
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                    className="input"
+              {/* Profile image */}
+              <div className="-mt-10 ml-6">
+                <div
+                  className="relative w-24 h-24 rounded-full overflow-hidden border-4 shadow-lg cursor-pointer"
+                  style={{ borderColor: "var(--gc-surface)" }}
+                  onClick={(e) => { e.stopPropagation(); profileImage.current?.click(); }}
+                >
+                <img src={frontendProfileImage} alt="profile" className="w-full h-full object-cover" />
+                <div
+                  className="absolute bottom-0 right-0 p-1 rounded-full border-2"
+                  style={{ background: "var(--gc-primary)", borderColor: "var(--gc-surface)" }}
+                >
+                  <FiPlus className="text-white" />
+                </div>
+                </div>
+                {frontendProfileImage && frontendProfileImage !== dp && (
+                  <div className="pt-2">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); removeProfile(); }} className="text-sm px-3 py-1 rounded border border-gray-200 dark:border-[var(--gc-border)] hover:bg-gray-50 dark:hover:bg-[var(--gc-surface)]">
+                      Remove profile image
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Form */}
+              <form className="p-5 pt-4 space-y-6" onSubmit={(e) => { e.preventDefault(); handleSaveProfile(); }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { placeholder: "First Name", value: firstName, setter: setFirstName },
+                    { placeholder: "Last Name", value: lastName, setter: setLastName },
+                    { placeholder: "Username", value: userName, setter: setUserName },
+                    { placeholder: "Headline", value: headline, setter: setHeadline },
+                    { placeholder: "Location", value: location, setter: setLocation },
+                    { placeholder: "Gender", value: gender, setter: setGender },
+                  ].map((field, idx) => (
+                    <input
+                      key={idx}
+                      type="text"
+                      placeholder={field.placeholder}
+                      value={field.value}
+                      onChange={(e) => field.setter(e.target.value)}
+                      className="input"
+                    />
+                  ))}
+                </div>
+
+                {/* Skills */}
+                <SectionCard title="Skills">
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill, index) => (
+                      <SkillTag key={index} skill={skill} onRemove={removeSkill} />
+                    ))}
+                  </div>
+                  <AddField placeholder="Add new skill" value={newSkills} onChange={setNewSkills} onAdd={addSkill} />
+                </SectionCard>
+
+                {/* Education */}
+                <SectionCard title="Education">
+                  <div className="space-y-2">
+                    {education.map((edu, index) => (
+                      <ListItem key={index} data={edu} onRemove={() => removeEducation(edu)} />
+                    ))}
+                  </div>
+                  <MultiAddField
+                    fields={[
+                      { placeholder: "College", value: newEducation.college, setter: (v) => setNewEducation({ ...newEducation, college: v }) },
+                      { placeholder: "Degree", value: newEducation.degree, setter: (v) => setNewEducation({ ...newEducation, degree: v }) },
+                      { placeholder: "Field of Study", value: newEducation.fieldOfStudy, setter: (v) => setNewEducation({ ...newEducation, fieldOfStudy: v }) },
+                    ]}
+                    onAdd={addEducation}
                   />
-                ))}
-              </div>
+                </SectionCard>
 
-              {/* Skills */}
-              <SectionCard title="Skills">
-                <div className="flex flex-wrap gap-2">
-                  {skills.map((skill, index) => (
-                    <SkillTag key={index} skill={skill} onRemove={removeSkill} />
-                  ))}
-                </div>
-                <AddField placeholder="Add new skill" value={newSkills} onChange={setNewSkills} onAdd={addSkill} />
-              </SectionCard>
+                {/* Experience */}
+                <SectionCard title="Experience">
+                  <div className="space-y-2">
+                    {experience.map((exp, index) => (
+                      <ListItem key={index} data={exp} onRemove={() => removeExperience(exp)} />
+                    ))}
+                  </div>
+                  <MultiAddField
+                    fields={[
+                      { placeholder: "Title", value: newExperience.title, setter: (v) => setNewExperience({ ...newExperience, title: v }) },
+                      { placeholder: "Company", value: newExperience.company, setter: (v) => setNewExperience({ ...newExperience, company: v }) },
+                      { placeholder: "Description", value: newExperience.description, setter: (v) => setNewExperience({ ...newExperience, description: v }) },
+                    ]}
+                    onAdd={addExperience}
+                  />
+                </SectionCard>
 
-              {/* Education */}
-              <SectionCard title="Education">
-                <div className="space-y-2">
-                  {education.map((edu, index) => (
-                    <ListItem key={index} data={edu} onRemove={() => removeEducation(edu)} />
-                  ))}
-                </div>
-                <MultiAddField
-                  fields={[
-                    { placeholder: "College", value: newEducation.college, setter: (v) => setNewEducation({ ...newEducation, college: v }) },
-                    { placeholder: "Degree", value: newEducation.degree, setter: (v) => setNewEducation({ ...newEducation, degree: v }) },
-                    { placeholder: "Field of Study", value: newEducation.fieldOfStudy, setter: (v) => setNewEducation({ ...newEducation, fieldOfStudy: v }) },
-                  ]}
-                  onAdd={addEducation}
-                />
-              </SectionCard>
-
-              {/* Experience */}
-              <SectionCard title="Experience">
-                <div className="space-y-2">
-                  {experience.map((exp, index) => (
-                    <ListItem key={index} data={exp} onRemove={() => removeExperience(exp)} />
-                  ))}
-                </div>
-                <MultiAddField
-                  fields={[
-                    { placeholder: "Title", value: newExperience.title, setter: (v) => setNewExperience({ ...newExperience, title: v }) },
-                    { placeholder: "Company", value: newExperience.company, setter: (v) => setNewExperience({ ...newExperience, company: v }) },
-                    { placeholder: "Description", value: newExperience.description, setter: (v) => setNewExperience({ ...newExperience, description: v }) },
-                  ]}
-                  onAdd={addExperience}
-                />
-              </SectionCard>
-
-              {/* Save */}
-              <button type="submit" disabled={saving} className="btn-primary w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed">
-                {saving ? "Saving..." : "Save Profile"}
-              </button>
-            </form>
+                {/* Save */}
+                <button type="submit" disabled={saving} className="btn-primary w-full py-3 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {saving ? "Saving..." : "Save Profile"}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
   return typeof document !== 'undefined' ? createPortal(overlay, document.body) : overlay;
 }
