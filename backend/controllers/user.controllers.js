@@ -1,6 +1,17 @@
 import uploadOnCloudinary from "../config/cloudinary.js";
 import User from "../models/user.model.js";
 
+// Helper: append cache-busting param to image URLs
+function addBust(url, ts) {
+  if (!url) return url;
+  try {
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}v=${ts}`;
+  } catch {
+    return url;
+  }
+}
+
 // ✅ Get the currently logged-in user
 export const getCurrentUser = async (req, res) => {
   try {
@@ -19,9 +30,13 @@ export const getCurrentUser = async (req, res) => {
 
     // For frontend compatibility, return as 'connections' array
     const userObj = user.toObject();
+    const ts = new Date(userObj.updatedAt || Date.now()).getTime();
+    userObj.profileImage = addBust(userObj.profileImage, ts);
+    userObj.coverImage = addBust(userObj.coverImage, ts);
     userObj.connections = userObj.connection || [];
     delete userObj.connection;
 
+    res.set('Cache-Control', 'no-store');
     return res.status(200).json(userObj);
   } catch (error) {
     console.error("getCurrentUser error:", error);
@@ -82,7 +97,12 @@ export const updateProfile = async (req, res) => {
       new: true,
     }).select("-password");
 
-    return res.status(200).json(user);
+    const obj = user.toObject();
+    const ts = new Date(obj.updatedAt || Date.now()).getTime();
+    obj.profileImage = addBust(obj.profileImage, ts);
+    obj.coverImage = addBust(obj.coverImage, ts);
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(obj);
   } catch (error) {
     console.error("updateProfile error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -99,7 +119,12 @@ export const getprofile = async (req, res) => {
       return res.status(404).json({ message: "Username does not exist" });
     }
 
-    return res.status(200).json(user);
+    const obj = user.toObject();
+    const ts = new Date(obj.updatedAt || Date.now()).getTime();
+    obj.profileImage = addBust(obj.profileImage, ts);
+    obj.coverImage = addBust(obj.coverImage, ts);
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(obj);
   } catch (error) {
     console.error("getprofile error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -143,7 +168,16 @@ export const getSuggestedUser = async (req, res) => {
       _id: { $ne: currentUser._id, $nin: currentUser.connection },
     }).select("-password");
 
-    return res.status(200).json(suggestedUsers);
+    // Light bust to reduce stale avatars in suggestions
+    const ts = Date.now();
+    const out = suggestedUsers.map(u => {
+      const o = u.toObject();
+      o.profileImage = addBust(o.profileImage, ts);
+      o.coverImage = addBust(o.coverImage, ts);
+      return o;
+    });
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(out);
   } catch (error) {
     console.error("getSuggestedUser error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -173,7 +207,9 @@ export const removeProfileImage = async (req, res) => {
       { new: true }
     ).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
-    return res.status(200).json(user);
+    const obj = user.toObject();
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(obj);
   } catch (error) {
     console.error("removeProfileImage error:", error);
     return res.status(500).json({ message: "Server error" });
@@ -189,7 +225,9 @@ export const removeCoverImage = async (req, res) => {
       { new: true }
     ).select("-password");
     if (!user) return res.status(404).json({ message: "User not found" });
-    return res.status(200).json(user);
+    const obj = user.toObject();
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json(obj);
   } catch (error) {
     console.error("removeCoverImage error:", error);
     return res.status(500).json({ message: "Server error" });
