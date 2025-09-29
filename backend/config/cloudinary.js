@@ -52,6 +52,29 @@ async function uploadBuffer(buffer, filename = 'upload') {
     }
 }
 
+// Upload from a Buffer with explicit Cloudinary options (e.g., public_id, overwrite, invalidate)
+async function uploadBufferWithOptions(buffer, options = {}) {
+    if (!buffer) return null;
+    try {
+        ensureCloudinaryCreds();
+        const res = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                options,
+                (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                }
+            );
+            stream.end(buffer);
+        });
+        // Return full result so callers can use secure_url/public_id/version
+        return res;
+    } catch (error) {
+        console.log(error);
+        throw error;
+    }
+}
+
 // Backwards-compatible default that accepts either a path string or a buffer
 export default async function uploadOnCloudinary(input, filename) {
     if (!input) return null;
@@ -68,4 +91,4 @@ export default async function uploadOnCloudinary(input, filename) {
     return null;
 }
 
-export { uploadFilePath, uploadBuffer };
+export { uploadFilePath, uploadBuffer, uploadBufferWithOptions };

@@ -1,4 +1,4 @@
-import uploadOnCloudinary from "../config/cloudinary.js";
+import uploadOnCloudinary, { uploadBufferWithOptions } from "../config/cloudinary.js";
 import User from "../models/user.model.js";
 
 // Helper: append cache-busting param to image URLs
@@ -67,13 +67,30 @@ export const updateProfile = async (req, res) => {
     let profileImage;
     let coverImage;
 
-    // Handle file uploads
+    // Handle file uploads with stable public_id + overwrite to ensure Cloudinary issues a new versioned URL
     if (req.files?.profileImage) {
-      // Using memoryStorage: pass the multer file object (has buffer) to uploader
-      profileImage = await uploadOnCloudinary(req.files.profileImage[0]);
+      const file = req.files.profileImage[0];
+      const publicId = `avatars/${req.userId}`;
+      const result = await uploadBufferWithOptions(file.buffer, {
+        resource_type: 'image',
+        public_id: publicId,
+        overwrite: true,
+        invalidate: true,
+        folder: undefined, // public_id already includes folder
+      });
+      profileImage = result?.secure_url || profileImage;
     }
     if (req.files?.coverImage) {
-      coverImage = await uploadOnCloudinary(req.files.coverImage[0]);
+      const file = req.files.coverImage[0];
+      const publicId = `covers/${req.userId}`;
+      const result = await uploadBufferWithOptions(file.buffer, {
+        resource_type: 'image',
+        public_id: publicId,
+        overwrite: true,
+        invalidate: true,
+        folder: undefined,
+      });
+      coverImage = result?.secure_url || coverImage;
     }
 
     // Build update object
