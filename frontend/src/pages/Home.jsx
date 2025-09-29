@@ -162,7 +162,7 @@ function Home() {
       <div className="w-full lg:w-[50%] flex flex-col gap-5 mt-[90px]">
         {/* + Post Button */}
         <motion.button
-          className="w-full btn-primary py-3 rounded-xl flex items-center justify-center gap-2 hover-lift"
+          className="w-full py-3 rounded-xl flex items-center justify-center gap-2 hover-lift relative overflow-hidden font-semibold text-white border border-white/70 dark:border-transparent shadow-lg ring-2 ring-white/60 dark:ring-[var(--gc-primary)]/40 bg-gradient-to-r from-[var(--gc-accent)] to-[var(--gc-primary)]"
           onClick={() => setUploadPost(true)}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -170,7 +170,21 @@ function Home() {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
-          <FiPlus size={20} /> Add Post
+          {/* animated sheen */}
+          <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500" style={{ transform: 'skewX(-20deg)' }} />
+          <motion.span
+            className="inline-flex items-center gap-2"
+            whileHover={{}}
+          >
+            <motion.span
+              initial={{ rotate: 0 }}
+              whileHover={{ rotate: 90 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+            >
+              <FiPlus size={20} />
+            </motion.span>
+            Add Post
+          </motion.span>
         </motion.button>
 
         {/* Posts */}
