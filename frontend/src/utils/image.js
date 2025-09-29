@@ -18,3 +18,16 @@ export async function compressImage(file, { maxDim = 1080, quality = 0.8, mime =
   if (!blob) return file;
   return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: mime });
 }
+
+  // Append a short-lived cache-busting query param to an image URL.
+  // Default ttlMs keeps the same URL for 60s to avoid thrash while still refreshing quickly after updates.
+  export function bust(url, ttlMs = 60000) {
+    if (!url) return url;
+    try {
+      const t = Math.floor(Date.now() / ttlMs);
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}cb=${t}`;
+    } catch {
+      return url;
+    }
+  }

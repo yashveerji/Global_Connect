@@ -16,6 +16,7 @@ import AutolinkText from './ui/Autolink';
 import { transformCloudinary } from '../utils/cloudinary';
 import { useToastInternal } from './ui/ToastProvider';
 import Lightbox from './ui/Lightbox';
+import { bust } from '../utils/image';
 
 // Note: no local socket connection; updates flow via context
 
@@ -509,7 +510,7 @@ function Post(props) {
           onClick={() => author?.userName && handleGetProfile(author.userName)}
         >
           <div className='w-[60px] h-[60px] rounded-full overflow-hidden flex items-center justify-center border border-gray-200 shadow-sm'>
-            <img src={author?.profileImage || dp} alt="" className='h-full w-full object-cover' />
+            <img src={(author?.profileImage ? bust(author.profileImage) : null) || dp} alt="" className='h-full w-full object-cover' />
           </div>
           <div>
             <div className='text-lg font-semibold text-[#0A66C2] hover:text-[#084d8a] transition-colors'>
@@ -732,7 +733,7 @@ function Post(props) {
                       if (!c) return null;
                       return (
                         <span key={id} className="chip">
-                          <img src={c.profileImage || dp} alt="" className="w-4 h-4 rounded-full mr-1" />
+                          <img src={(c.profileImage ? bust(c.profileImage) : null) || dp} alt="" className="w-4 h-4 rounded-full mr-1" />
                           <span className="truncate max-w-[120px]">{c.firstName} {c.lastName}</span>
                           <button
                             className="ml-1 text-xs text-gray-500 hover:text-red-500"
@@ -763,7 +764,7 @@ function Post(props) {
                         checked={selectedConnections.includes(c._id)}
                         onChange={() => toggleSelectConnection(c._id)}
                       />
-                      <img src={c.profileImage || dp} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      <img src={(c.profileImage ? bust(c.profileImage) : null) || dp} alt="" className="w-8 h-8 rounded-full object-cover" />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-800 dark:text-white truncate">{c.firstName} {c.lastName}</div>
                         {c.userName && <div className="text-xs text-gray-500 truncate">@{c.userName}</div>}
@@ -857,7 +858,7 @@ function Post(props) {
               <div className="absolute bottom-12 left-0 w-full max-w-md bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#2C2F36] rounded-md shadow-lg z-10">
                 {mentionList.map(u => (
                   <button key={u._id} type="button" className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-900 text-left" onClick={() => applyMention(u)}>
-                    <img src={u.profileImage || dp} alt="" className="w-7 h-7 rounded-full object-cover" />
+                    <img src={(u.profileImage ? bust(u.profileImage) : null) || dp} alt="" className="w-7 h-7 rounded-full object-cover" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-800 dark:text-white truncate">{u.firstName} {u.lastName}</div>
                       {u.userName && <div className="text-xs text-gray-500 truncate">@{u.userName}</div>}
@@ -874,7 +875,7 @@ function Post(props) {
               <div key={com._id} className={`flex flex-col gap-2 border-b border-gray-200 pb-2 ${com.optimistic ? 'opacity-70' : ''}`}>
                 <div className="flex items-center gap-2">
                   <div className='w-[35px] h-[35px] rounded-full overflow-hidden'>
-                    <img src={com.user?.profileImage || dp} alt="" className='h-full w-full object-cover' />
+                    <img src={(com.user?.profileImage ? bust(com.user.profileImage) : null) || dp} alt="" className='h-full w-full object-cover' />
                   </div>
                   <div className='text-sm font-semibold text-[#0A66C2]'>{`${com.user?.firstName ?? ""} ${com.user?.lastName ?? ""}`}</div>
                   {/* Delete comment button for comment owner */}
@@ -910,7 +911,7 @@ function Post(props) {
                   <div className="pl-[45px] mt-1 flex flex-col gap-2">
                     {com.replies.map(r => (
                       <div key={r._id} className="flex items-start gap-2">
-                        <img src={r.user?.profileImage || dp} alt="" className="w-6 h-6 rounded-full object-cover mt-0.5" />
+                        <img src={(r.user?.profileImage ? bust(r.user.profileImage) : null) || dp} alt="" className="w-6 h-6 rounded-full object-cover mt-0.5" />
                         <div className="flex-1">
                           <div className="text-sm"><span className="font-semibold text-[#0A66C2]">{r.user?.firstName} {r.user?.lastName}</span> <span className="text-gray-700 dark:text-white"><AutolinkText text={r.content} onMentionClick={(h)=>h&&handleGetProfile(h)} onHashtagClick={(t)=>alert(`#${t} coming soon`)} /></span></div>
                           <div className="flex items-center gap-3 text-xs text-gray-600 mt-0.5">
@@ -939,7 +940,7 @@ function Post(props) {
                       <div className="absolute bottom-12 left-0 w-full max-w-md bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#2C2F36] rounded-md shadow-lg z-10">
                         {mentionList.map(u => (
                           <button key={u._id} type="button" className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-900 text-left" onClick={() => applyMention(u)}>
-                            <img src={u.profileImage || dp} alt="" className="w-7 h-7 rounded-full object-cover" />
+                            <img src={(u.profileImage ? bust(u.profileImage) : null) || dp} alt="" className="w-7 h-7 rounded-full object-cover" />
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium text-gray-800 dark:text-white truncate">{u.firstName} {u.lastName}</div>
                               {u.userName && <div className="text-xs text-gray-500 truncate">@{u.userName}</div>}

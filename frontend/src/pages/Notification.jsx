@@ -10,6 +10,7 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 import AutolinkText from '../components/ui/Autolink';
 import { transformCloudinary } from '../utils/cloudinary';
 import moment from 'moment';
+import { bust } from '../utils/image';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -200,7 +201,7 @@ function Notification() {
                         <div className="flex items-center gap-3">
                           <div className="w-[50px] h-[50px] rounded-full overflow-hidden border border-gray-200 dark:border-[var(--gc-border)]">
                             <img
-                              src={noti.relatedUser?.profileImage || dp}
+                              src={(noti.relatedUser?.profileImage ? bust(noti.relatedUser.profileImage) : null) || dp}
                               alt=""
                               className="w-full h-full object-cover"
                               loading="lazy"

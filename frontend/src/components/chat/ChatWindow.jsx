@@ -11,6 +11,7 @@ import { FiPhone, FiVideo, FiPaperclip, FiMoreVertical, FiBellOff, FiArchive, Fi
 import CallWindow from "./CallWindow";
 import { useConfirm } from "../ui/ConfirmDialog";
 import { useToastInternal } from "../ui/ToastProvider";
+import { bust } from "../../utils/image";
 
 function ChatBox() {
   const { userData, socket } = useContext(userDataContext);
@@ -476,7 +477,10 @@ function ChatBox() {
     const c = getConnById(id);
     return c ? `${c.firstName} ${c.lastName}` : id;
   };
-  const imgForId = (id) => getConnById(id)?.profileImage || dp;
+  const imgForId = (id) => {
+    const raw = getConnById(id)?.profileImage;
+    return (raw ? bust(raw) : null) || dp;
+  };
   // Pinned conversations (client-side, persisted)
   const [pinned, setPinned] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_pins') || '[]'); } catch { return []; }
@@ -1631,7 +1635,7 @@ function ChatBox() {
                 : 'bg-white dark:bg-[#1E1E1E] text-gray-900 dark:text-white border-gray-200 dark:border-[#2C2F36]'
               } hover:bg-gray-50 dark:hover:bg-black`}>
                             <span className="relative">
-                              <img src={conn.profileImage || dp} alt="" className="w-8 h-8 rounded-full border bg-gray-100 dark:bg-[#1E1E1E]" />
+                              <img src={(conn.profileImage ? bust(conn.profileImage) : null) || dp} alt="" className="w-8 h-8 rounded-full border bg-gray-100 dark:bg-[#1E1E1E]" />
                               <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${presence[conn._id] ? 'bg-green-500' : 'bg-gray-300'} border border-white`} />
                             </span>
                             <span className="text-sm">{displayName}</span>
@@ -1653,7 +1657,7 @@ function ChatBox() {
             <div className="px-4 py-3 border-b border-gray-200 dark:border-[#2C2F36] bg-white dark:bg-[#1E1E1E] flex items-center justify-between">
               {receiverObj ? (
                 <button className="flex items-center gap-2 group" onClick={() => navigate(`/profile/${receiverObj.userName || receiverObj._id}`)} title="View profile">
-                  <img src={receiverObj.profileImage || dp} alt="" className="w-9 h-9 rounded-full border" />
+                  <img src={(receiverObj.profileImage ? bust(receiverObj.profileImage) : null) || dp} alt="" className="w-9 h-9 rounded-full border" />
                   <div className="flex flex-col items-start">
                     <span className="text-base font-semibold text-gray-900 dark:text-white group-hover:text-blue-700">{receiverObj.firstName} {receiverObj.lastName}</span>
                     <span className="text-xs text-gray-600 dark:text-white">
@@ -1874,7 +1878,7 @@ function ChatBox() {
   pcState={pcState}
   relayInfo={{ local: sawRelayLocal, remote: sawRelayRemote }}
         peerName={`${receiverObj?.firstName || ''} ${receiverObj?.lastName || ''}`.trim() || 'Unknown'}
-        peerImage={receiverObj?.profileImage || dp}
+  peerImage={(receiverObj?.profileImage ? bust(receiverObj.profileImage) : null) || dp}
         minimized={minimized}
         onToggleMinimize={() => setMinimized(v => !v)}
         onAccept={acceptCall}

@@ -10,6 +10,7 @@ import axios from "axios";
 import { authDataContext } from "../context/AuthContext";
 import Post from "../components/Post";
 import AIChat from "../components/AIChat";
+import { bust } from "../utils/image";
 
 
 function Home() {
@@ -108,7 +109,7 @@ function Home() {
             style={{ borderColor: 'var(--gc-primary)' }}
           >
             <img
-              src={userData.profileImage || dp}
+              src={(userData.profileImage ? bust(userData.profileImage) : null) || dp}
               alt="Profile"
               className="w-full h-full object-cover"
             />
@@ -140,7 +141,7 @@ function Home() {
                   <div className="w-[45px] h-[45px] rounded-full overflow-hidden border-2"
                        style={{ borderColor: 'var(--gc-primary)' }}>
                     <img
-                      src={su.profileImage || dp}
+                      src={(su.profileImage ? bust(su.profileImage) : null) || dp}
                       alt="User"
                       className="w-full h-full object-cover"
                     />

@@ -3,6 +3,7 @@ import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Nav from '../components/Nav';
 import dp from "../assets/dp.webp";
+import { bust } from "../utils/image";
 import { HiPencil } from "react-icons/hi2";
 import { userDataContext } from '../context/UserContext';
 import { authDataContext } from '../context/AuthContext';
@@ -94,7 +95,7 @@ function Profile() {
             {/* Cover Image */}
             <div className="w-full h-36 bg-gray-100 dark:bg-[var(--gc-surface)] overflow-hidden cursor-pointer border-b border-gray-200 dark:border-[var(--gc-border)]">
               {profileData.coverImage ? (
-                <img src={profileData.coverImage} alt="Cover" className="w-full h-full object-cover" />
+                <img src={profileData.coverImage ? bust(profileData.coverImage) : profileData.coverImage} alt="Cover" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-[var(--gc-muted)]">No Cover Photo</div>
               )}
@@ -102,7 +103,7 @@ function Profile() {
 
             {/* Profile Picture */}
             <div className="w-24 h-24 rounded-full overflow-hidden border-4 shadow-lg absolute top-24 left-6 cursor-pointer" style={{ borderColor: 'var(--gc-surface)' }}>
-              <img src={profileData.profileImage || dp} alt="Profile" className="w-full h-full object-cover" />
+              <img src={(profileData.profileImage ? bust(profileData.profileImage) : null) || dp} alt="Profile" className="w-full h-full object-cover" />
             </div>
 
             {/* User Info */}

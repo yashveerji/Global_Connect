@@ -18,6 +18,7 @@ import { HiOutlineUser } from 'react-icons/hi';
 import { IoLogOutOutline } from 'react-icons/io5';
 import { FaGithub } from 'react-icons/fa';
 import { motion } from 'framer-motion';
+import { bust } from '../utils/image';
 
 function Nav() {
     // Spring config for snappy, subtle interactions
@@ -275,7 +276,7 @@ function Nav() {
                                 aria-label={`Go to profile of ${sea.firstName} ${sea.lastName}`}
                             >
                                 <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-green-400 shadow-md">
-                                    <img src={sea.profileImage || dp} alt="" className="w-full h-full object-cover" />
+                                    <img src={(sea.profileImage ? bust(sea.profileImage) : null) || dp} alt="" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-sm font-medium text-gray-800 dark:text-white truncate">
@@ -382,7 +383,7 @@ function Nav() {
                         aria-label="Open profile menu"
                         aria-expanded={showPopup}
                     >
-                        <img src={userData?.profileImage || dp} alt="Profile" className='w-full h-full object-cover' />
+                        <img src={(userData?.profileImage ? bust(userData.profileImage) : null) || dp} alt="Profile" className='w-full h-full object-cover' />
                         {/* Status indicator */}
                         <span className='absolute bottom-1 right-1 w-3 h-3 rounded-full bg-green-400 ring-2 ring-white dark:ring-[#23272F] animate-pulse'></span>
                     </div>
@@ -406,7 +407,7 @@ function Nav() {
                 >
                     <div className='flex items-center gap-3 pb-3 border-b border-gray-200 dark:border-[#2C2F36]'>
                         <div className='w-12 h-12 rounded-full overflow-hidden ring-2 ring-indigo-400 dark:ring-yellow-400 shadow'>
-                            <img src={userData?.profileImage || dp} alt="Profile" className='w-full h-full object-cover' />
+                            <img src={(userData?.profileImage ? bust(userData.profileImage) : null) || dp} alt="Profile" className='w-full h-full object-cover' />
                         </div>
                         <div className='flex-1 min-w-0'>
                             <div className='text-sm font-semibold text-gray-900 dark:text-white truncate'>{`${userData.firstName} ${userData.lastName}`}</div>
